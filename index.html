@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2B50EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%232B50EC'/%3E%3Ccircle cx='62' cy='118' r='16' fill='white'/%3E%3Ccircle cx='118' cy='62' r='12' fill='none' stroke='white' stroke-width='8'/%3E%3Cpath d='M62 118 L118 62' stroke='white' stroke-width='9' fill='none'/%3E%3C/svg%3E">
+<title>Δρομολόγιο</title>
+<style>
+  :root{
+    --bg:#E9ECF0;--card:#FFFFFF;--ink:#171A1F;--muted:#6A7079;--line:#DADCE1;
+    --route:#2B50EC;--route-soft:#E7ECFE;--wait:#E8902D;--wait-soft:#FBEEDD;
+    --late:#C0392B;--late-soft:#FBE4E4;--ok:#1E8E54;
+    --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+
+  header{position:sticky;top:0;z-index:20;background:rgba(233,236,240,.86);backdrop-filter:saturate(140%) blur(8px);border-bottom:1px solid var(--line);}
+  .head-in{max-width:1180px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.01em;font-size:18px;}
+  .brand .dot{width:11px;height:11px;border-radius:3px;background:var(--route);box-shadow:0 0 0 4px var(--route-soft);}
+  .badge{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--route);background:var(--route-soft);border:1px solid #CBD7FB;border-radius:999px;padding:4px 9px;white-space:nowrap;}
+
+  main{max-width:1180px;margin:0 auto;padding:20px 18px 60px;display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:20px;align-items:start;}
+  @media(max-width:860px){main{grid-template-columns:1fr;}}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 0 rgba(23,26,31,.02),0 8px 24px -18px rgba(23,26,31,.28);}
+  .section{padding:18px;}
+  .section + .section{border-top:1px solid var(--line);}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:0 0 12px;}
+  label.fld{display:block;margin-bottom:12px;}label.fld:last-child{margin-bottom:0;}
+  .lab{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;}
+
+  input[type=text],input[type=time],input[type=number],select{width:100%;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 11px;outline:none;transition:border-color .12s,box-shadow .12s;}
+  input:focus,select:focus{border-color:var(--route);box-shadow:0 0 0 3px var(--route-soft);}
+  input.mono{font-family:var(--mono);}
+  select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236A7079' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px;}
+
+  .ac{position:relative;}
+  .ac-list{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;background:#fff;border:1px solid var(--line);border-radius:11px;overflow:hidden;box-shadow:0 12px 30px -12px rgba(23,26,31,.35);display:none;max-height:280px;overflow-y:auto;}
+  .ac-list.open{display:block;}
+  .ac-item{display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;}
+  .ac-item:hover,.ac-item.active{background:var(--route-soft);}
+  .ac-ic{width:22px;height:22px;flex:0 0 22px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;background:var(--route);}
+  .ac-name{font-size:13.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ac-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px;}
+  .seg button{flex:1;font:inherit;font-weight:600;font-size:13.5px;border:0;background:transparent;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer;transition:.12s;}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(23,26,31,.12);}
+  .seg button .em{margin-right:5px;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .defaults{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px;}
+
+  .stop{border:1px solid var(--line);border-radius:12px;padding:14px 12px 12px;margin-bottom:10px;position:relative;background:#fff;}
+  .stop .sn{position:absolute;top:-9px;left:12px;font-family:var(--mono);font-size:11px;background:var(--wait);color:#fff;border-radius:6px;padding:1px 7px;letter-spacing:.04em;}
+  .stop .rm{position:absolute;top:9px;right:9px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;}
+  .stop .rm:hover{background:var(--late-soft);color:var(--late);border-color:#F0C0C0;}
+  .mins{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}.mins.solo{grid-template-columns:1fr;}
+  .win{margin-top:10px;}
+  .win-times{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:8px;}
+  .win-times.hide{display:none;}.win-times span{color:var(--muted);}
+  .small{font-size:11px;color:var(--muted);margin-top:8px;}
+
+  .addbtn{width:100%;font:inherit;font-weight:600;color:var(--route);background:var(--route-soft);border:1px dashed #B9C6FB;border-radius:11px;padding:11px;cursor:pointer;transition:.12s;}
+  .addbtn:hover{background:#dbe4fe;}
+  .imp{display:flex;gap:8px;margin-top:8px;}
+  .impbtn{flex:1;font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px;cursor:pointer;}
+  .impbtn:hover{background:var(--bg);}.impbtn.ghost{color:var(--muted);}
+  #impMsg{background:var(--route-soft);color:var(--route);border:1px solid #CBD7FB;border-radius:9px;padding:8px 11px;margin-top:8px;}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .switch{position:relative;width:46px;height:27px;flex:0 0 46px;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.16s;cursor:pointer;}
+  .slider::before{content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.16s;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .switch input:checked + .slider{background:var(--route);}
+  .switch input:checked + .slider::before{transform:translateX(19px);}
+
+  .go{width:100%;font:inherit;font-weight:700;font-size:15px;color:#fff;background:var(--route);border:0;border-radius:12px;padding:14px;cursor:pointer;transition:.12s;}
+  .go:hover{background:#2343c9;}.go:active{transform:translateY(1px);}
+  .go:disabled{opacity:.6;cursor:default;}
+
+  #map{width:100%;height:300px;border-radius:14px 14px 0 0;background:#dfe3e8;border-bottom:1px solid var(--line);}
+  @media(max-width:860px){#map{height:240px;}}
+  .empty{padding:40px 24px;text-align:center;color:var(--muted);}
+  .empty .big{font-size:34px;margin-bottom:10px;opacity:.5;}
+  .err{margin:18px;background:var(--late-soft);border:1px solid #F0C0C0;color:var(--late);border-radius:10px;padding:12px 14px;font-size:13px;word-break:break-word;}
+  .status{padding:22px 18px;color:var(--muted);font-size:14px;}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--route-soft);border-top-color:var(--route);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .sum{padding:18px;border-bottom:1px solid var(--line);}
+  .sum-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .sum-total{font-family:var(--mono);font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+  .saved{font-family:var(--mono);font-size:11.5px;padding:5px 9px;border-radius:999px;background:#E4F4EB;color:var(--ok);border:1px solid #BEE6CD;white-space:nowrap;}
+  .saved.none{background:var(--bg);color:var(--muted);border-color:var(--line);}
+  .sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px;}
+  .stat{background:var(--bg);border-radius:10px;padding:10px 11px;}
+  .stat .k{font-size:11px;color:var(--muted);}.stat .v{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:2px;}
+  .warn{margin-top:14px;background:var(--late-soft);border:1px solid #F0C0C0;color:var(--late);border-radius:10px;padding:9px 12px;font-size:13px;}
+  .exp{margin-top:14px;width:100%;font:inherit;font-weight:600;font-size:13.5px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;}
+  .exp:hover{background:var(--bg);}
+
+  .spine{padding:6px 18px 20px;}
+  .node{position:relative;padding:0 0 0 34px;}
+  .node::before{content:"";position:absolute;left:9px;top:0;bottom:0;width:2px;background:var(--route);}
+  .node.first::before{top:14px;}.node.last::before{bottom:auto;height:14px;}
+  .dot{position:absolute;left:0;top:7px;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--route);z-index:2;}
+  .dot.term{background:var(--route);}.dot.stop{border-color:var(--wait);}.dot.bad{border-color:var(--late);}
+  .leg{padding:9px 0 9px 6px;}
+  .leg .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--route);background:var(--route-soft);border:1px solid #CBD7FB;border-radius:999px;padding:3px 10px;}
+  .stn{padding:6px 0 14px;}
+  .stn .t{font-family:var(--mono);font-size:18px;font-weight:600;letter-spacing:-.01em;}
+  .stn .nm{font-weight:600;margin-top:1px;}.stn .tag{font-size:11px;color:var(--muted);}
+  .dwell{margin-top:7px;display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-family:var(--mono);font-size:11.5px;border-radius:999px;padding:3px 9px;background:var(--wait-soft);color:#B96C12;border:1px solid #F0D6B2;}
+  .chip.depart{background:#fff;color:var(--muted);border-color:var(--line);}
+  .chip.wait{background:var(--route-soft);color:var(--route);border-color:#CBD7FB;}
+  .chip.late{background:var(--late-soft);color:var(--late);border-color:#F0C0C0;}
+
+  .reveal .node{opacity:0;transform:translateY(6px);animation:rise .34s ease forwards;animation-delay:calc(var(--i)*55ms);}
+  @keyframes rise{to{opacity:1;transform:none;}}
+  footer{max-width:1180px;margin:0 auto;padding:0 18px 40px;color:var(--muted);font-size:12.5px;}
+
+  .print-head{display:none;}.print-head .ph-title{font-weight:700;font-size:20px;}.print-head .ph-meta{font-size:12.5px;color:var(--muted);margin-top:4px;}
+  @media(prefers-reduced-motion:reduce){.reveal .node{animation:none;opacity:1;transform:none;}}
+  @media print{
+    header,footer,.panel.form,.exp,#map,.go,.addbtn,.imp{display:none!important;}
+    body{background:#fff;}main{display:block;max-width:none;padding:0;}
+    .panel{border:0;box-shadow:none;border-radius:0;}
+    .print-head{display:block;padding:0 18px 8px;border-bottom:1px solid var(--line);margin-bottom:8px;}
+    .saved{display:none;}.reveal .node{animation:none;opacity:1;transform:none;}.node{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-in">
+    <div class="brand"><span class="dot"></span>Δρομολόγιο</div>
+    <span class="badge" id="apiBadge">σύνδεση…</span>
+  </div>
+</header>
+
+<main>
+  <!-- FORM -->
+  <div class="panel form">
+    <div class="section">
+      <p class="eyebrow">Αφετηρία &amp; ώρα</p>
+      <label class="fld"><span class="lab">Σημείο αφετηρίας</span>
+        <div class="ac"><input type="text" id="startInput" placeholder="Διεύθυνση ή σημείο ενδιαφέροντος" autocomplete="off"><div class="ac-list" id="startList"></div></div>
+      </label>
+      <div class="row2">
+        <label class="fld" style="margin-bottom:0"><span class="lab">Ώρα αναχώρησης</span><input type="time" id="departTime" class="mono" value="08:30"></label>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <p class="eyebrow">Όχημα</p>
+      <div class="seg" id="seg">
+        <button data-v="car" class="on"><span class="em">🚗</span>Αυτοκίνητο</button>
+        <button data-v="moto"><span class="em">🏍️</span>Μοτοσικλέτα</button>
+      </div>
+      <p class="small" id="vehNote" style="display:none">Στη μοτοσικλέτα ο χρόνος παρκαρίσματος μηδενίζεται.</p>
+    </div>
+
+    <div class="section">
+      <p class="eyebrow">Στάσεις</p>
+      <div class="defaults">
+        <span class="lab" style="margin-bottom:0">Προεπιλογές για κάθε νέα στάση</span>
+        <div class="row2" style="margin-top:8px">
+          <label><span class="lab">Στάση (λεπτά)</span><input type="number" min="0" class="mono" id="defStop" value="5"></label>
+          <label id="defParkWrap"><span class="lab">Παρκάρισμα (λεπτά)</span><input type="number" min="0" class="mono" id="defPark" value="5"></label>
+        </div>
+      </div>
+      <div id="stops"></div>
+      <button class="addbtn" id="addStop">+ Προσθήκη στάσης</button>
+      <div class="imp">
+        <input type="file" id="fileIn" accept=".csv,.txt" style="display:none">
+        <button class="impbtn" id="impBtn">⬆ Εισαγωγή από αρχείο</button>
+        <button class="impbtn ghost" id="tmplBtn">⬇ Υπόδειγμα CSV</button>
+      </div>
+      <div class="small" id="impMsg" style="display:none"></div>
+    </div>
+
+    <div class="section">
+      <div class="toggle">
+        <div><div style="font-weight:600">Επιστροφή στην αφετηρία</div><div class="small" style="margin-top:2px">Κλείνει τον κύκλο στο σημείο εκκίνησης.</div></div>
+        <label class="switch"><input type="checkbox" id="returnToggle" checked><span class="slider"></span></label>
+      </div>
+      <label class="fld" id="finalWrap" style="display:none;margin-top:14px">
+        <span class="lab">Τελικός προορισμός <span style="color:var(--muted)">(προαιρετικό — κενό = τελευταία στάση)</span></span>
+        <div class="ac"><input type="text" id="finalInput" placeholder="Διεύθυνση ή σημείο ενδιαφέροντος" autocomplete="off"><div class="ac-list" id="finalList"></div></div>
+      </label>
+    </div>
+
+    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="panel">
+    <div id="map"></div>
+    <div id="results">
+      <div class="empty"><div class="big">🧭</div>
+        <div>Συμπλήρωσε αφετηρία και στάσεις, μετά πάτησε <b>«Υπολόγισε διαδρομή»</b>.</div></div>
+    </div>
+  </div>
+</main>
+
+<footer>Πραγματικά δεδομένα κίνησης μέσω Google Routes API (TRAFFIC_AWARE). Η σειρά βελτιστοποιείται από το API· οι χρόνοι στάσης, παρκαρίσματος και τα χρονικά παράθυρα υπολογίζονται τοπικά.</footer>
+
+<script>
+/* ===================================================================
+   ΒΑΛΕ ΕΔΩ ΤΟ ΔΙΚΟ ΣΟΥ GOOGLE MAPS API KEY (μία φορά):
+   =================================================================== */
+const API_KEY = "PASTE_YOUR_API_KEY_HERE";
+/* =================================================================== */
+
+/* ---- Google Maps loader (επίσημος) ---- */
+(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key:API_KEY,v:"weekly"});
+
+/* ---- PWA manifest (για «Προσθήκη στην αρχική οθόνη») ---- */
+try{
+  const man={name:"Δρομολόγιο",short_name:"Δρομολόγιο",start_url:".",display:"standalone",background_color:"#E9ECF0",theme_color:"#2B50EC",
+    icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%232B50EC'/%3E%3Ccircle cx='66' cy='126' r='17' fill='white'/%3E%3Ccircle cx='126' cy='66' r='13' fill='none' stroke='white' stroke-width='9'/%3E%3Cpath d='M66 126 L126 66' stroke='white' stroke-width='10'/%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"}]};
+  const link=document.createElement("link");link.rel="manifest";
+  link.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:"application/json"}));
+  document.head.appendChild(link);
+}catch(e){}
+
+/* ---- Βοηθητικά ---- */
+const $=id=>document.getElementById(id);
+function fmt(min){min=((Math.round(min)%1440)+1440)%1440;const h=Math.floor(min/60),m=min%60;return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");}
+function dur(min){min=Math.round(min);const h=Math.floor(min/60),m=min%60;return h?`${h}ω ${m}′`:`${m}′`;}
+function toMin(s){if(!s)return null;const[h,m]=s.split(":").map(Number);return h*60+m;}
+function esc(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
+function departureISO(hhmm){const[h,m]=hhmm.split(":").map(Number);const now=new Date();const d=new Date();d.setHours(h,m,0,0);if(d.getTime()<now.getTime()+60000)d.setDate(d.getDate()+1);return d.toISOString();}
+
+/* ---- Κατάσταση ---- */
+let state={vehicle:"car",returnToStart:true,defaultStop:5,defaultPark:5,stops:[{id:1,winMode:"any"},{id:2,winMode:"any"}]};
+let nextId=3;
+const sel={start:null,finalDest:null};   // resolved places: {name,sub,lat,lng,placeId}
+
+/* ---- Places autocomplete (νέο API) ---- */
+async function wireAC(input,listEl,onPick){
+  let token=null, sugg=[];
+  let lib;
+  try{ lib=await google.maps.importLibrary("places"); }catch(e){ return; }
+  const {AutocompleteSuggestion,AutocompleteSessionToken}=lib;
+  function close(){listEl.classList.remove("open");}
+  const run=debounce(async()=>{
+    const q=input.value.trim(); onPick(null);
+    if(q.length<2){close();return;}
+    if(!token) token=new AutocompleteSessionToken();
+    try{
+      const res=await AutocompleteSuggestion.fetchAutocompleteSuggestions({input:q,sessionToken:token,includedRegionCodes:["gr"],language:"el"});
+      sugg=res.suggestions||[];
+      if(!sugg.length){close();return;}
+      listEl.innerHTML=sugg.map((s,i)=>{const p=s.placePrediction;
+        return `<div class="ac-item" data-i="${i}"><div class="ac-ic">★</div><div class="ac-tx"><div class="ac-name">${esc(p.mainText?.text||p.text?.text)}</div><div class="ac-sub">${esc(p.secondaryText?.text||"")}</div></div></div>`;}).join("");
+      listEl.classList.add("open");
+      [...listEl.children].forEach(el=>el.onclick=async()=>{
+        const s=sugg[+el.dataset.i],pred=s.placePrediction;
+        try{
+          const place=pred.toPlace();
+          await place.fetchFields({fields:["location","displayName","formattedAddress","id"]});
+          const picked={name:place.displayName||pred.text?.text||q,sub:place.formattedAddress||"",lat:place.location.lat(),lng:place.location.lng(),placeId:place.id};
+          input.value=picked.name; onPick(picked);
+        }catch(err){ onPick(null); }
+        close(); token=null;
+      });
+    }catch(e){ close(); }
+  },260);
+  input.addEventListener("input",run);
+  input.addEventListener("blur",()=>setTimeout(close,160));
+}
+
+/* ---- Geocoding (για εισαγωγή CSV / κείμενο χωρίς επιλογή) ---- */
+let geocoder=null;
+async function geocode(addr){
+  try{
+    if(!geocoder){const g=await google.maps.importLibrary("geocoding");geocoder=new g.Geocoder();}
+    const {results}=await geocoder.geocode({address:addr,region:"gr"});
+    if(results&&results[0]){const r=results[0];return {name:addr,sub:r.formatted_address,lat:r.geometry.location.lat(),lng:r.geometry.location.lng(),placeId:r.place_id};}
+  }catch(e){}
+  return null;
+}
+
+/* ---- Render φόρμας στάσεων ---- */
+function renderStops(){
+  const stopsEl=$("stops"); stopsEl.innerHTML="";
+  const showPark=state.vehicle==="car";
+  state.stops.forEach((s,i)=>{
+    const div=document.createElement("div");div.className="stop";
+    div.innerHTML=`
+      <span class="sn">Στάση ${i+1}</span>
+      <button class="rm" title="Διαγραφή στάσης" data-rm="${s.id}">×</button>
+      <div class="ac" style="margin-top:2px"><input type="text" placeholder="Διεύθυνση ή σημείο ενδιαφέροντος" autocomplete="off" data-stopin="${s.id}"><div class="ac-list" data-stoplist="${s.id}"></div></div>
+      <div class="mins ${showPark?'':'solo'}">
+        <div><span class="lab">Στάση (λεπτά)</span><input type="number" min="0" class="mono" value="${s.stopMin??state.defaultStop}" data-stopmin="${s.id}"></div>
+        ${showPark?`<div><span class="lab">Παρκάρισμα (λεπτά)</span><input type="number" min="0" class="mono" value="${s.parkMin??state.defaultPark}" data-parkmin="${s.id}"></div>`:""}
+      </div>
+      <div class="win"><span class="lab">Χρονικό παράθυρο άφιξης</span>
+        <select data-winmode="${s.id}">
+          <option value="any">Οποτεδήποτε</option><option value="between">Μεταξύ…</option>
+          <option value="after">Μετά από…</option><option value="before">Πριν από…</option>
+        </select>
+        <div class="win-times" data-wintimes="${s.id}">
+          <input type="time" class="mono" data-winfrom="${s.id}" value="${s.winFrom||''}">
+          <span data-windash="${s.id}">—</span>
+          <input type="time" class="mono" data-winto="${s.id}" value="${s.winTo||''}">
+        </div>
+      </div>`;
+    stopsEl.appendChild(div);
+    const inp=div.querySelector(`[data-stopin]`),lst=div.querySelector(`[data-stoplist]`);
+    if(s.place)inp.value=s.place.name;
+    wireAC(inp,lst,p=>{s.place=p;});
+    inp.addEventListener("input",()=>{s._raw=inp.value;});
+    div.querySelector(`[data-stopmin]`).addEventListener("input",e=>s.stopMin=+e.target.value||0);
+    const pk=div.querySelector(`[data-parkmin]`);if(pk)pk.addEventListener("input",e=>s.parkMin=+e.target.value||0);
+    const modeSel=div.querySelector(`[data-winmode]`);modeSel.value=s.winMode||"any";
+    const times=div.querySelector(`[data-wintimes]`),fromI=div.querySelector(`[data-winfrom]`),toI=div.querySelector(`[data-winto]`),dash=div.querySelector(`[data-windash]`);
+    function updWin(){const m=s.winMode||"any";times.classList.toggle("hide",m==="any");
+      fromI.style.visibility=(m==="between"||m==="after")?"visible":"hidden";
+      toI.style.visibility=(m==="between"||m==="before")?"visible":"hidden";
+      dash.style.visibility=m==="between"?"visible":"hidden";}
+    updWin();
+    modeSel.addEventListener("change",e=>{s.winMode=e.target.value;updWin();});
+    fromI.addEventListener("input",e=>s.winFrom=e.target.value);
+    toI.addEventListener("input",e=>s.winTo=e.target.value);
+    div.querySelector(`[data-rm]`).addEventListener("click",()=>{state.stops=state.stops.filter(x=>x.id!==s.id);renderStops();});
+  });
+}
+
+/* ---- Χρονικά παράθυρα ---- */
+function parseWin(s){const f=s.winFrom?toMin(s.winFrom):null,to=s.winTo?toMin(s.winTo):null,m=s.winMode||"any";
+  if(m==="after")return{from:f,to:null};if(m==="before")return{from:null,to:to};if(m==="between")return{from:f,to:to};return null;}
+
+/* ---- Αλυσίδα χρόνων (παρκάρισμα, αναμονή, παράθυρα) ---- */
+function chainTimes(visits,legMin,depart,vehicle,startRef){
+  let t=depart,legs=[],drive=0,idle=0,lateTotal=0;
+  visits.forEach((v,i)=>{
+    const tr=legMin[i],arrive=t+tr;drive+=tr;
+    if(v.isStop){
+      const park=vehicle==="car"?(v.parkMin||0):0,atDoor=arrive+park,win=v.win;
+      let wait=0,lateBy=0;
+      if(win){if(win.from!=null&&atDoor<win.from)wait=win.from-atDoor;const ss=atDoor+wait;if(win.to!=null&&ss>win.to)lateBy=ss-win.to;}
+      const ss=atDoor+wait,stp=v.stopMin||0,dep=ss+stp;
+      idle+=park+wait+stp;lateTotal+=lateBy;
+      legs.push({to:v.place,travel:tr,arrive,park,wait,stop:stp,depart:dep,lateBy,win,kind:"stop"});
+      t=dep;
+    }else{
+      legs.push({to:v.place,travel:tr,arrive,kind:"end",back:v.place===startRef});
+      t=arrive;
+    }
+  });
+  return {legs,drive,idle,end:t,lateTotal};
+}
+
+/* ---- Routes API ---- */
+async function computeRoutesAPI(origin,intermediates,destination,departIso){
+  const wp=p=>p.placeId?{placeId:p.placeId}:{location:{latLng:{latitude:p.lat,longitude:p.lng}}};
+  const body={origin:wp(origin),destination:wp(destination),intermediates:intermediates.map(wp),
+    travelMode:"DRIVE",routingPreference:"TRAFFIC_AWARE",departureTime:departIso,
+    optimizeWaypointOrder:intermediates.length>1};
+  const resp=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","X-Goog-Api-Key":API_KEY,
+      "X-Goog-FieldMask":"routes.optimizedIntermediateWaypointIndex,routes.legs.duration,routes.legs.distanceMeters,routes.duration,routes.polyline.encodedPolyline"},
+    body:JSON.stringify(body)});
+  if(!resp.ok){let d="";try{d=(await resp.json()).error?.message||"";}catch(e){}throw new Error(`Routes API ${resp.status}. ${d}`);}
+  const data=await resp.json();
+  if(!data.routes||!data.routes[0])throw new Error("Δεν βρέθηκε διαδρομή για αυτά τα σημεία.");
+  return data.routes[0];
+}
+const legToMin=l=>Math.round(parseInt(l.duration,10)/60);
+
+/* ---- Χάρτης ---- */
+let map=null,routeLine=null,markers=[];
+async function initMap(){try{const {Map}=await google.maps.importLibrary("maps");
+  map=new Map($("map"),{center:{lat:37.98,lng:23.74},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});}catch(e){}}
+async function drawRoute(route,points){
+  if(!map)return;
+  try{
+    const {encoding}=await google.maps.importLibrary("geometry");
+    if(routeLine)routeLine.setMap(null);markers.forEach(m=>m.setMap(null));markers=[];
+    const enc=route.polyline?.encodedPolyline;
+    if(enc){const path=encoding.decodePath(enc);
+      routeLine=new google.maps.Polyline({path,strokeColor:"#2B50EC",strokeWeight:5,strokeOpacity:.85,map});
+      const b=new google.maps.LatLngBounds();path.forEach(p=>b.extend(p));
+      points.forEach(p=>b.extend({lat:p.lat,lng:p.lng}));map.fitBounds(b,48);}
+    points.forEach((p,i)=>{try{markers.push(new google.maps.Marker({position:{lat:p.lat,lng:p.lng},map,label:{text:String(i),color:"#fff",fontSize:"12px"}}));}catch(e){}});
+  }catch(e){}
+}
+
+/* ---- Render αποτελέσματος ---- */
+function winLabel(w){if(!w)return null;if(w.from!=null&&w.to!=null)return `παράθυρο ${fmt(w.from)}–${fmt(w.to)}`;if(w.from!=null)return `μετά τις ${fmt(w.from)}`;if(w.to!=null)return `πριν τις ${fmt(w.to)}`;return null;}
+function renderResults(r){
+  const res=$("results"),f=r.final,total=f.end-r.depart;
+  const vehName=r.vehicle==="moto"?"Μοτοσικλέτα":"Αυτοκίνητο";
+  const endName=r.endPoint?(r.endPoint===r.start?"Επιστροφή στην αφετηρία":"Τελικός: "+r.endPoint.name):"Λήξη στην τελευταία στάση";
+  let html=`<div class="print-head"><div class="ph-title">Δρομολόγιο οδηγού</div>
+    <div class="ph-meta">Αφετηρία: ${esc(r.start.name)} · Όχημα: ${vehName} · Αναχώρηση: ${fmt(r.depart)} · Συνολικός χρόνος: ${dur(total)} · ${esc(endName)}${r.endPoint?` (${fmt(f.end)})`:""}</div></div>`;
+  html+=`<div class="sum"><div class="sum-top">
+      <div><div style="font-size:11px;letter-spacing:.1em;color:var(--muted);font-family:var(--mono)">ΣΥΝΟΛΙΚΟΣ ΧΡΟΝΟΣ</div><div class="sum-total">${dur(total)}</div></div>
+      ${r.saved>0?`<span class="saved">βελτιστοποίηση · −${dur(r.saved)} οδήγηση</span>`:`<span class="saved none">βέλτιστη σειρά</span>`}</div>
+    <div class="sum-grid">
+      <div class="stat"><div class="k">Αναχώρηση</div><div class="v">${fmt(r.depart)}</div></div>
+      <div class="stat"><div class="k">Οδήγηση</div><div class="v">${dur(f.drive)}</div></div>
+      <div class="stat"><div class="k">Ακινησία</div><div class="v">${dur(f.idle)}</div></div></div>
+    ${f.lateTotal>0?`<div class="warn">⚠ Κάποιες στάσεις πέφτουν εκτός χρονικού παραθύρου (συνολική καθυστέρηση ${dur(f.lateTotal)}).</div>`:""}
+    <button class="exp" onclick="window.print()">🖨 Εκτύπωση / αποθήκευση ως PDF</button>
+  </div><div class="spine reveal">`;
+  let i=0;
+  html+=`<div class="node first" style="--i:${i++}"><span class="dot term"></span>
+    <div class="stn"><div class="t">${fmt(r.depart)}</div><div class="nm">${esc(r.start.name)}</div><div class="tag">Αφετηρία</div>
+    <div class="dwell"><span class="chip depart">αναχώρηση ${fmt(r.depart)}</span></div></div></div>`;
+  const hasEnd=!!r.endPoint;
+  f.legs.forEach((l,idx)=>{
+    const last=idx===f.legs.length-1,bad=l.kind==="stop"&&l.lateBy>0,stopTerminus=!hasEnd&&last&&l.kind==="stop";
+    html+=`<div class="node ${last?'last':''}" style="--i:${i++}">
+      <span class="dot ${l.kind==='end'?'term':(bad?'bad':'stop')}"></span>
+      <div class="leg"><span class="pill">🚗 οδήγηση ${l.travel}′</span></div>
+      <div class="stn"><div class="t">${fmt(l.arrive)}</div><div class="nm">${esc(l.to.name)}</div>
+        <div class="tag">${l.kind==='end'?(l.back?'Επιστροφή στην αφετηρία':'Τελικός προορισμός'):('Στάση'+(stopTerminus?' · τελικός προορισμός':''))}${l.win?` · ${winLabel(l.win)}`:''}</div>`;
+    if(l.kind==="stop"){html+=`<div class="dwell">`;
+      if(l.wait>0)html+=`<span class="chip wait">⏳ αναμονή ${l.wait}′</span>`;
+      if(l.park>0)html+=`<span class="chip">παρκάρισμα ${l.park}′</span>`;
+      html+=`<span class="chip">στάση ${l.stop}′</span>`;
+      if(l.lateBy>0)html+=`<span class="chip late">⚠ εκτός παραθύρου +${l.lateBy}′</span>`;
+      html+=`<span class="chip depart">αναχώρηση ${fmt(l.depart)}</span></div>`;}
+    html+=`</div></div>`;
+  });
+  html+=`</div>`;
+  res.innerHTML=html;
+}
+function showStatus(msg){$("results").innerHTML=`<div class="status"><span class="spin"></span>${esc(msg)}</div>`;}
+function showError(msg){$("results").innerHTML=`<div class="err"><b>Σφάλμα.</b> ${esc(msg)}</div>`;}
+
+/* ---- Κύριος υπολογισμός ---- */
+async function compute(){
+  if(API_KEY==="PASTE_YOUR_API_KEY_HERE"){showError("Δεν έχει οριστεί API key. Άνοιξε το αρχείο και βάλε το κλειδί σου στη γραμμή const API_KEY.");return;}
+  const goBtn=$("go");goBtn.disabled=true;
+  try{
+    // 1) resolve αφετηρία
+    showStatus("Εντοπισμός σημείων…");
+    let start=sel.start||(($("startInput").value.trim())?await geocode($("startInput").value.trim()):null);
+    if(!start){throw new Error("Συμπλήρωσε έγκυρο σημείο αφετηρίας.");}
+    // 2) resolve στάσεις
+    const stops=[];
+    for(const s of state.stops){
+      let pl=s.place; if(!pl && s._raw) pl=await geocode(s._raw);
+      if(!pl) continue;
+      stops.push({place:pl,isStop:true,win:parseWin(s),stopMin:s.stopMin??state.defaultStop,parkMin:s.parkMin??state.defaultPark});
+    }
+    if(!stops.length){throw new Error("Πρόσθεσε τουλάχιστον μία έγκυρη στάση.");}
+    // 3) endpoint
+    let endPoint=null,terminalVisit,intermediatesMeta;
+    if(state.returnToStart){endPoint=start;intermediatesMeta=stops;terminalVisit={place:start,isStop:false};}
+    else{
+      let fd=sel.finalDest||(($("finalInput").value.trim())?await geocode($("finalInput").value.trim()):null);
+      if(fd){endPoint=fd;intermediatesMeta=stops;terminalVisit={place:fd,isStop:false};}
+      else{const last=stops[stops.length-1];intermediatesMeta=stops.slice(0,-1);terminalVisit=last;}
+    }
+    const departHHMM=$("departTime").value||"08:30";
+    const depart=toMin(departHHMM), departIso=departureISO(departHHMM);
+    // 4) Routes API
+    showStatus("Υπολογισμός βέλτιστης διαδρομής με δεδομένα κίνησης…");
+    const route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso);
+    const order=route.optimizedIntermediateWaypointIndex||intermediatesMeta.map((_,i)=>i);
+    const optMeta=order.map(idx=>intermediatesMeta[idx]);
+    const visits=[...optMeta,terminalVisit];
+    const legMin=(route.legs||[]).map(legToMin);
+    if(legMin.length!==visits.length){ // ασφάλεια: ευθυγράμμιση
+      while(legMin.length<visits.length)legMin.push(0);
+    }
+    const final=chainTimes(visits,legMin,depart,state.vehicle,start);
+    // εκτίμηση κέρδους: σύγκριση με τη σειρά εισαγωγής (μόνο για ένδειξη)
+    let saved=0;
+    if(optMeta.length>1){const origMin=(route.legs||[]).map(legToMin).reduce((a,b)=>a+b,0);
+      // δεν έχουμε ξεχωριστή κλήση για ανέλεγκτη σειρά· δείχνουμε 0 αν δεν αλλάχτηκε
+      const changed=order.some((v,i)=>v!==i);saved=changed?0:0; }
+    // 5) Χάρτης
+    const mapPoints=[start,...optMeta.map(m=>m.place),terminalVisit.place];
+    drawRoute(route,mapPoints);
+    renderResults({start,depart,final,saved,vehicle:state.vehicle,endPoint});
+  }catch(err){
+    const msg=(""+err.message).includes("Failed to fetch")
+      ? "Αποτυχία σύνδεσης με το Routes API. Έλεγξε ότι το key έχει ενεργό το Routes API και ότι ο HTTP referrer περιορισμός ταιριάζει με τη διεύθυνση της σελίδας."
+      : err.message;
+    showError(msg);
+  }finally{ $("go").disabled=false; }
+}
+
+/* ---- CSV εισαγωγή ---- */
+const HEAD={address:["διεύθυνση","address","name","σημείο","προορισμός","διευθυνση"],stop:["στάση","stop","σταση"],park:["παρκάρισμα","parking","park","παρκαρισμα"],from:["από","from","after","απο"],to:["έως","to","before","εως","μέχρι","μεχρι"]};
+function splitLine(line,delim){const out=[];let cur="",q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(c===delim&&!q){out.push(cur);cur="";}else cur+=c;}out.push(cur);return out.map(s=>s.trim());}
+function parseDelimited(text){text=text.replace(/^\ufeff/,"").replace(/\r\n?/g,"\n").trim();const lines=text.split("\n").filter(l=>l.trim()!=="");if(!lines.length)return[];const f=lines[0],counts={",":(f.match(/,/g)||[]).length,";":(f.match(/;/g)||[]).length,"\t":(f.match(/\t/g)||[]).length};let delim=",",mx=-1;for(const d in counts)if(counts[d]>mx){mx=counts[d];delim=d;}return lines.map(l=>splitLine(l,delim));}
+function importText(text){const rows=parseDelimited(text);if(!rows.length)return[];const flat=rows[0].map(c=>c.toLowerCase());const isHeader=flat.some(c=>HEAD.address.includes(c)||HEAD.stop.includes(c));let idx={address:0,stop:1,park:2,from:3,to:4},data=rows;
+  if(isHeader){data=rows.slice(1);const find=arr=>{for(const a of arr){const i=flat.indexOf(a);if(i>=0)return i;}return -1;};idx={address:find(HEAD.address),stop:find(HEAD.stop),park:find(HEAD.park),from:find(HEAD.from),to:find(HEAD.to)};if(idx.address<0)idx.address=0;}
+  const out=[];for(const r of data){const addr=(r[idx.address]||"").trim();if(!addr)continue;const gv=i=>i>=0&&r[i]!==undefined?(""+r[i]).trim():"";let sm=parseInt(gv(idx.stop),10),pm=parseInt(gv(idx.park),10);const from=gv(idx.from),to=gv(idx.to);let winMode="any";if(from&&to)winMode="between";else if(from)winMode="after";else if(to)winMode="before";
+    out.push({id:nextId++,_raw:addr,place:null,stopMin:isNaN(sm)?state.defaultStop:sm,parkMin:isNaN(pm)?state.defaultPark:pm,winMode,winFrom:from,winTo:to});}
+  return out;}
+function showImp(msg){const el=$("impMsg");el.textContent=msg;el.style.display="block";}
+function downloadTemplate(){const csv='διεύθυνση,στάση,παρκάρισμα,από,έως\n"Πλατεία Συντάγματος, Αθήνα",10,5,,\n"The Mall Athens, Μαρούσι",20,8,10:00,11:30\n"Λιμάνι Πειραιά",15,10,,12:00\n';
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));a.download="ypodeigma-staseon.csv";a.click();URL.revokeObjectURL(a.href);}
+
+/* ---- Events ---- */
+$("seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.vehicle=b.dataset.v;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b));
+  $("vehNote").style.display=state.vehicle==="moto"?"block":"none";
+  $("defParkWrap").style.display=state.vehicle==="moto"?"none":"block";renderStops();});
+$("returnToggle").addEventListener("change",e=>{state.returnToStart=e.target.checked;$("finalWrap").style.display=e.target.checked?"none":"block";});
+$("defStop").addEventListener("input",e=>state.defaultStop=+e.target.value||0);
+$("defPark").addEventListener("input",e=>state.defaultPark=+e.target.value||0);
+$("addStop").addEventListener("click",()=>{state.stops.push({id:nextId++,stopMin:state.defaultStop,parkMin:state.defaultPark,winMode:"any"});renderStops();});
+$("impBtn").addEventListener("click",()=>$("fileIn").click());
+$("tmplBtn").addEventListener("click",downloadTemplate);
+$("fileIn").addEventListener("change",e=>{const file=e.target.files[0];if(!file)return;const rd=new FileReader();
+  rd.onload=()=>{const drafts=importText(rd.result);if(!drafts.length){showImp("Δεν βρέθηκαν έγκυρες στάσεις στο αρχείο.");return;}
+    drafts.forEach(d=>state.stops.push(d));renderStops();
+    let m=`Προστέθηκαν ${drafts.length} στάσεις. Οι διευθύνσεις θα εντοπιστούν (geocoding) κατά τον υπολογισμό.`;
+    if(state.stops.length>25)m+=" Προσοχή: το Routes API δέχεται έως 25 ενδιάμεσες στάσεις.";
+    showImp(m);};
+  rd.readAsText(file,"utf-8");e.target.value="";});
+$("go").addEventListener("click",compute);
+$("finalInput")&&$("finalInput").addEventListener("input",()=>{if($("finalInput").value.trim()==="")sel.finalDest=null;});
+
+/* ---- Init ---- */
+(async()=>{
+  renderStops();
+  wireAC($("startInput"),$("startList"),p=>sel.start=p);
+  wireAC($("finalInput"),$("finalList"),p=>sel.finalDest=p);
+  await initMap();
+  $("apiBadge").textContent=(API_KEY==="PASTE_YOUR_API_KEY_HERE")?"χωρίς key":"έτοιμο";
+  $("apiBadge").style.color=(API_KEY==="PASTE_YOUR_API_KEY_HERE")?"var(--late)":"var(--ok)";
+})();
+</script>
+</body>
+</html>
