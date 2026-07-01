@@ -26,6 +26,26 @@
   .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.01em;font-size:18px;}
   .brand .dot{width:11px;height:11px;border-radius:3px;background:var(--route);box-shadow:0 0 0 4px var(--route-soft);}
   .badge{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--route);background:var(--route-soft);border:1px solid #CBD7FB;border-radius:999px;padding:4px 9px;white-space:nowrap;}
+  .gear-btn{font:inherit;font-size:13px;font-weight:600;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 13px;cursor:pointer;display:flex;align-items:center;gap:7px;}
+  .gear-btn:hover{background:var(--bg);}
+  #apiBadge{font-family:var(--mono);font-size:11px;letter-spacing:.04em;}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(23,26,31,.45);backdrop-filter:blur(3px);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .overlay.hidden{display:none;}
+  .modal{background:#fff;border-radius:18px;padding:28px;max-width:440px;width:100%;box-shadow:0 24px 60px -12px rgba(23,26,31,.45);}
+  .modal h2{margin:0 0 6px;font-size:18px;}
+  .modal p{margin:0 0 18px;color:var(--muted);font-size:13.5px;line-height:1.5;}
+  .modal input{width:100%;font:var(--mono);font-size:13.5px;color:var(--ink);background:#F6F7F9;border:1px solid var(--line);border-radius:10px;padding:11px 13px;outline:none;letter-spacing:.03em;}
+  .modal input:focus{border-color:var(--route);box-shadow:0 0 0 3px var(--route-soft);background:#fff;}
+  .modal .row{display:flex;gap:10px;margin-top:14px;}
+  .modal .row button{flex:1;font:inherit;font-size:14px;font-weight:600;padding:11px;border-radius:11px;cursor:pointer;border:0;}
+  .modal .save{background:var(--route);color:#fff;}.modal .save:hover{background:#2343c9;}
+  .modal .cancel{background:var(--bg);color:var(--muted);border:1px solid var(--line)!important;}.modal .cancel:hover{background:var(--line);}
+  .modal .hint{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .modal .hint a{color:var(--route);}
+  .modal .del{font-size:12px;color:var(--late);background:none;border:0;cursor:pointer;margin-top:8px;display:block;text-align:right;padding:0;}
+  .modal .del:hover{text-decoration:underline;}
 
   main{max-width:1180px;margin:0 auto;padding:20px 18px 60px;display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:20px;align-items:start;}
   @media(max-width:860px){main{grid-template-columns:1fr;}}
@@ -145,7 +165,7 @@
 <header>
   <div class="head-in">
     <div class="brand"><span class="dot"></span>Δρομολόγιο</div>
-    <span class="badge" id="apiBadge">σύνδεση…</span>
+    <button class="gear-btn" id="settingsBtn" title="Ρυθμίσεις API key">⚙ <span id="apiBadge">σύνδεση…</span></button>
   </div>
 </header>
 
@@ -217,11 +237,26 @@
 
 <footer>Πραγματικά δεδομένα κίνησης μέσω Google Routes API (TRAFFIC_AWARE). Η σειρά βελτιστοποιείται από το API· οι χρόνοι στάσης, παρκαρίσματος και τα χρονικά παράθυρα υπολογίζονται τοπικά.</footer>
 
+<!-- Settings modal -->
+<div class="overlay hidden" id="overlay">
+  <div class="modal">
+    <h2>🔑 Google Maps API Key</h2>
+    <p>Το key αποθηκεύεται μόνο στη συσκευή σου (localStorage) και δεν στέλνεται πουθενά εκτός από τα APIs της Google.</p>
+    <input type="text" id="keyInput" placeholder="AIzaSy…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div class="hint">Δεν έχεις key ακόμα; → <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank">Google Cloud Console</a><br>Χρειάζονται ενεργά: <b>Maps JS API</b>, <b>Places API (New)</b>, <b>Routes API</b>.</div>
+    <button class="del" id="delKey" style="display:none">Διαγραφή αποθηκευμένου key</button>
+    <div class="row">
+      <button class="cancel" id="cancelSettings">Άκυρο</button>
+      <button class="save" id="saveKey">Αποθήκευση</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ===================================================================
    ΒΑΛΕ ΕΔΩ ΤΟ ΔΙΚΟ ΣΟΥ GOOGLE MAPS API KEY (μία φορά):
    =================================================================== */
-const API_KEY = "PASTE_YOUR_API_KEY_HERE";
+let API_KEY = localStorage.getItem("gmap_api_key")||"";
 /* =================================================================== */
 
 /* ---- Google Maps loader (επίσημος) ---- */
@@ -448,7 +483,7 @@ function showError(msg){$("results").innerHTML=`<div class="err"><b>Σφάλμα
 
 /* ---- Κύριος υπολογισμός ---- */
 async function compute(){
-  if(API_KEY==="PASTE_YOUR_API_KEY_HERE"){showError("Δεν έχει οριστεί API key. Άνοιξε το αρχείο και βάλε το κλειδί σου στη γραμμή const API_KEY.");return;}
+  if(!API_KEY){showError("Δεν έχει οριστεί API key. Πάτησε ⚙ πάνω δεξιά για να το εισάγεις.");return;}
   const goBtn=$("go");goBtn.disabled=true;
   try{
     // 1) resolve αφετηρία
@@ -540,9 +575,43 @@ $("finalInput")&&$("finalInput").addEventListener("input",()=>{if($("finalInput"
   renderStops();
   wireAC($("startInput"),$("startList"),p=>sel.start=p);
   wireAC($("finalInput"),$("finalList"),p=>sel.finalDest=p);
-  await initMap();
-  $("apiBadge").textContent=(API_KEY==="PASTE_YOUR_API_KEY_HERE")?"χωρίς key":"έτοιμο";
-  $("apiBadge").style.color=(API_KEY==="PASTE_YOUR_API_KEY_HERE")?"var(--late)":"var(--ok)";
+
+  // badge
+  function refreshBadge(){
+    const ok=!!(API_KEY&&API_KEY.length>10);
+    $("apiBadge").textContent=ok?"key ✓":"χωρίς key";
+    $("apiBadge").style.color=ok?"var(--ok)":"var(--late)";
+  }
+  refreshBadge();
+
+  // settings modal — ορίζεται ΠΡΙΝ το initMap ώστε να ανοίγει πάντα
+  function openSettings(){
+    const stored=localStorage.getItem("gmap_api_key")||"";
+    $("keyInput").value=stored;
+    $("delKey").style.display=stored?"block":"none";
+    $("overlay").classList.remove("hidden");
+    setTimeout(()=>$("keyInput").focus(),80);
+  }
+  function closeSettings(){$("overlay").classList.add("hidden");}
+  function saveKey(){
+    const v=$("keyInput").value.trim();
+    if(v){localStorage.setItem("gmap_api_key",v);API_KEY=v;}
+    else{localStorage.removeItem("gmap_api_key");API_KEY="";}
+    refreshBadge();
+    closeSettings();
+    // φόρτωσε ξανά ώστε το Maps JS να αρχικοποιηθεί με το νέο key
+    if(v) window.location.reload();
+  }
+  $("settingsBtn").addEventListener("click",openSettings);
+  $("cancelSettings").addEventListener("click",closeSettings);
+  $("overlay").addEventListener("click",e=>{if(e.target===$("overlay"))closeSettings();});
+  $("saveKey").addEventListener("click",saveKey);
+  $("keyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();if(e.key==="Escape")closeSettings();});
+  $("delKey").addEventListener("click",()=>{localStorage.removeItem("gmap_api_key");API_KEY="";$("keyInput").value="";$("delKey").style.display="none";refreshBadge();closeSettings();});
+
+  // αν δεν υπάρχει key ανοίγει αυτόματα ΑΜΕΣΩΣ, αλλιώς φόρτωσε χάρτη
+  if(!API_KEY){ openSettings(); }
+  else { await initMap(); }
 })();
 </script>
 </body>
