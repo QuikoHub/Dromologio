@@ -222,7 +222,8 @@
       </label>
     </div>
 
-    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button></div>
+    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button>
+      <button class="impbtn ghost" id="resetBtn" style="width:100%;margin-top:10px">↺ Επαναφορά — νέο δρομολόγιο</button></div>
   </div>
 
   <!-- RESULTS -->
@@ -243,7 +244,7 @@
     <h2>🔑 Google Maps API Key</h2>
     <p>Το key αποθηκεύεται μόνο στη συσκευή σου (localStorage) και δεν στέλνεται πουθενά εκτός από τα APIs της Google.</p>
     <input type="text" id="keyInput" placeholder="AIzaSy…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <div class="hint">Δεν έχεις key ακόμα; → <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank">Google Cloud Console</a><br>Χρειάζονται ενεργά: <b>Maps JS API</b>, <b>Places API (New)</b>, <b>Routes API</b>.</div>
+    <div class="hint">Δεν έχεις key ακόμα; → <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank">Google Cloud Console</a><br>Χρειάζονται ενεργά: <b>Maps JS API</b>, <b>Places API (New)</b>, <b>Routes API</b>, <b>Geocoding API</b>.<br>Στους περιορισμούς referrer βάλε: <b>https://quikohub.github.io/*</b></div>
     <button class="del" id="delKey" style="display:none">Διαγραφή αποθηκευμένου key</button>
     <div class="row">
       <button class="cancel" id="cancelSettings">Άκυρο</button>
@@ -281,7 +282,7 @@ function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f
 function departureISO(hhmm){const[h,m]=hhmm.split(":").map(Number);const now=new Date();const d=new Date();d.setHours(h,m,0,0);if(d.getTime()<now.getTime()+60000)d.setDate(d.getDate()+1);return d.toISOString();}
 
 /* ---- Κατάσταση ---- */
-let state={vehicle:"car",returnToStart:true,defaultStop:5,defaultPark:5,stops:[{id:1,winMode:"any"},{id:2,winMode:"any"}]};
+let state={vehicle:"car",returnToStart:true,defaultStop:5,defaultPark:5,stops:[{id:1,stopMin:5,parkMin:5,winMode:"any"},{id:2,stopMin:5,parkMin:5,winMode:"any"}]};
 let nextId=3;
 const sel={start:null,finalDest:null};   // resolved places: {name,sub,lat,lng,placeId}
 
@@ -357,7 +358,7 @@ function renderStops(){
       </div>`;
     stopsEl.appendChild(div);
     const inp=div.querySelector(`[data-stopin]`),lst=div.querySelector(`[data-stoplist]`);
-    if(s.place)inp.value=s.place.name;
+    if(s.place)inp.value=s.place.name; else if(s._raw)inp.value=s._raw;
     wireAC(inp,lst,p=>{s.place=p;});
     inp.addEventListener("input",()=>{s._raw=inp.value;});
     div.querySelector(`[data-stopmin]`).addEventListener("input",e=>s.stopMin=+e.target.value||0);
@@ -388,7 +389,11 @@ function chainTimes(visits,legMin,depart,vehicle,startRef){
     if(v.isStop){
       const park=vehicle==="car"?(v.parkMin||0):0,atDoor=arrive+park,win=v.win;
       let wait=0,lateBy=0;
-      if(win){if(win.from!=null&&atDoor<win.from)wait=win.from-atDoor;const ss=atDoor+wait;if(win.to!=null&&ss>win.to)lateBy=ss-win.to;}
+      if(win){
+        const lift=b=>{if(b==null)return null;while(b<depart)b+=1440;return b;}; // παράθυρα μετά τα μεσάνυχτα
+        const wFrom=lift(win.from),wTo=lift(win.to);
+        if(wFrom!=null&&atDoor<wFrom)wait=wFrom-atDoor;const ss=atDoor+wait;if(wTo!=null&&ss>wTo)lateBy=ss-wTo;
+      }
       const ss=atDoor+wait,stp=v.stopMin||0,dep=ss+stp;
       idle+=park+wait+stp;lateTotal+=lateBy;
       legs.push({to:v.place,travel:tr,arrive,park,wait,stop:stp,depart:dep,lateBy,win,kind:"stop"});
@@ -402,10 +407,10 @@ function chainTimes(visits,legMin,depart,vehicle,startRef){
 }
 
 /* ---- Routes API ---- */
-async function computeRoutesAPI(origin,intermediates,destination,departIso){
+async function computeRoutesAPI(origin,intermediates,destination,departIso,travelMode="DRIVE"){
   const wp=p=>p.placeId?{placeId:p.placeId}:{location:{latLng:{latitude:p.lat,longitude:p.lng}}};
   const body={origin:wp(origin),destination:wp(destination),intermediates:intermediates.map(wp),
-    travelMode:"DRIVE",routingPreference:"TRAFFIC_AWARE",departureTime:departIso,
+    travelMode,routingPreference:"TRAFFIC_AWARE",departureTime:departIso,
     optimizeWaypointOrder:intermediates.length>1};
   const resp=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
     method:"POST",
@@ -422,7 +427,7 @@ const legToMin=l=>Math.round(parseInt(l.duration,10)/60);
 /* ---- Χάρτης ---- */
 let map=null,routeLine=null,markers=[];
 async function initMap(){try{const {Map}=await google.maps.importLibrary("maps");
-  map=new Map($("map"),{center:{lat:37.98,lng:23.74},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});}catch(e){}}
+  map=new Map($("map"),{center:{lat:40.63,lng:22.95},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});}catch(e){}}
 async function drawRoute(route,points){
   if(!map)return;
   try{
@@ -433,7 +438,8 @@ async function drawRoute(route,points){
       routeLine=new google.maps.Polyline({path,strokeColor:"#2B50EC",strokeWeight:5,strokeOpacity:.85,map});
       const b=new google.maps.LatLngBounds();path.forEach(p=>b.extend(p));
       points.forEach(p=>b.extend({lat:p.lat,lng:p.lng}));map.fitBounds(b,48);}
-    points.forEach((p,i)=>{try{markers.push(new google.maps.Marker({position:{lat:p.lat,lng:p.lng},map,label:{text:String(i),color:"#fff",fontSize:"12px"}}));}catch(e){}});
+    points.forEach((p,i)=>{if(i===points.length-1&&i>0&&p===points[0])return; // μην διπλώνεις marker στην επιστροφή
+      try{markers.push(new google.maps.Marker({position:{lat:p.lat,lng:p.lng},map,label:{text:i===0?"A":String(i),color:"#fff",fontSize:"12px"}}));}catch(e){}});
   }catch(e){}
 }
 
@@ -447,12 +453,13 @@ function renderResults(r){
     <div class="ph-meta">Αφετηρία: ${esc(r.start.name)} · Όχημα: ${vehName} · Αναχώρηση: ${fmt(r.depart)} · Συνολικός χρόνος: ${dur(total)} · ${esc(endName)}${r.endPoint?` (${fmt(f.end)})`:""}</div></div>`;
   html+=`<div class="sum"><div class="sum-top">
       <div><div style="font-size:11px;letter-spacing:.1em;color:var(--muted);font-family:var(--mono)">ΣΥΝΟΛΙΚΟΣ ΧΡΟΝΟΣ</div><div class="sum-total">${dur(total)}</div></div>
-      ${r.saved>0?`<span class="saved">βελτιστοποίηση · −${dur(r.saved)} οδήγηση</span>`:`<span class="saved none">βέλτιστη σειρά</span>`}</div>
+      ${r.reordered?`<span class="saved">↻ η σειρά βελτιστοποιήθηκε</span>`:`<span class="saved none">βέλτιστη σειρά</span>`}</div>
     <div class="sum-grid">
       <div class="stat"><div class="k">Αναχώρηση</div><div class="v">${fmt(r.depart)}</div></div>
       <div class="stat"><div class="k">Οδήγηση</div><div class="v">${dur(f.drive)}</div></div>
       <div class="stat"><div class="k">Ακινησία</div><div class="v">${dur(f.idle)}</div></div></div>
     ${f.lateTotal>0?`<div class="warn">⚠ Κάποιες στάσεις πέφτουν εκτός χρονικού παραθύρου (συνολική καθυστέρηση ${dur(f.lateTotal)}).</div>`:""}
+    ${r.failed&&r.failed.length?`<div class="warn">⚠ Δεν εντοπίστηκαν και παραλείφθηκαν: ${esc(r.failed.join(" · "))}</div>`:""}
     <button class="exp" onclick="window.print()">🖨 Εκτύπωση / αποθήκευση ως PDF</button>
   </div><div class="spine reveal">`;
   let i=0;
@@ -491,12 +498,13 @@ async function compute(){
     let start=sel.start||(($("startInput").value.trim())?await geocode($("startInput").value.trim()):null);
     if(!start){throw new Error("Συμπλήρωσε έγκυρο σημείο αφετηρίας.");}
     // 2) resolve στάσεις
-    const stops=[];
+    const stops=[],failed=[];
     for(const s of state.stops){
       let pl=s.place; if(!pl && s._raw) pl=await geocode(s._raw);
-      if(!pl) continue;
+      if(!pl){ if(s._raw)failed.push(s._raw); continue; }
       stops.push({place:pl,isStop:true,win:parseWin(s),stopMin:s.stopMin??state.defaultStop,parkMin:s.parkMin??state.defaultPark});
     }
+    if(failed.length&&!stops.length){throw new Error("Δεν εντοπίστηκε καμία διεύθυνση (geocoding). Έλεγξε ότι το Geocoding API είναι ενεργό και επιτρεπτό στο key. Απέτυχαν: "+failed.join(" · "));}
     if(!stops.length){throw new Error("Πρόσθεσε τουλάχιστον μία έγκυρη στάση.");}
     // 3) endpoint
     let endPoint=null,terminalVisit,intermediatesMeta;
@@ -510,7 +518,13 @@ async function compute(){
     const depart=toMin(departHHMM), departIso=departureISO(departHHMM);
     // 4) Routes API
     showStatus("Υπολογισμός βέλτιστης διαδρομής με δεδομένα κίνησης…");
-    const route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso);
+    let route;
+    try{
+      route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso,state.vehicle==="moto"?"TWO_WHEELER":"DRIVE");
+    }catch(e){
+      if(state.vehicle!=="moto")throw e; // fallback αν το TWO_WHEELER δεν υποστηρίζεται στην περιοχή
+      route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso,"DRIVE");
+    }
     const order=route.optimizedIntermediateWaypointIndex||intermediatesMeta.map((_,i)=>i);
     const optMeta=order.map(idx=>intermediatesMeta[idx]);
     const visits=[...optMeta,terminalVisit];
@@ -519,15 +533,11 @@ async function compute(){
       while(legMin.length<visits.length)legMin.push(0);
     }
     const final=chainTimes(visits,legMin,depart,state.vehicle,start);
-    // εκτίμηση κέρδους: σύγκριση με τη σειρά εισαγωγής (μόνο για ένδειξη)
-    let saved=0;
-    if(optMeta.length>1){const origMin=(route.legs||[]).map(legToMin).reduce((a,b)=>a+b,0);
-      // δεν έχουμε ξεχωριστή κλήση για ανέλεγκτη σειρά· δείχνουμε 0 αν δεν αλλάχτηκε
-      const changed=order.some((v,i)=>v!==i);saved=changed?0:0; }
+    const reordered=order.some((v,i)=>v!==i);
     // 5) Χάρτης
     const mapPoints=[start,...optMeta.map(m=>m.place),terminalVisit.place];
     drawRoute(route,mapPoints);
-    renderResults({start,depart,final,saved,vehicle:state.vehicle,endPoint});
+    renderResults({start,depart,final,reordered,failed,vehicle:state.vehicle,endPoint});
   }catch(err){
     const msg=(""+err.message).includes("Failed to fetch")
       ? "Αποτυχία σύνδεσης με το Routes API. Έλεγξε ότι το key έχει ενεργό το Routes API και ότι ο HTTP referrer περιορισμός ταιριάζει με τη διεύθυνση της σελίδας."
@@ -568,6 +578,22 @@ $("fileIn").addEventListener("change",e=>{const file=e.target.files[0];if(!file)
     showImp(m);};
   rd.readAsText(file,"utf-8");e.target.value="";});
 $("go").addEventListener("click",compute);
+$("resetBtn").addEventListener("click",()=>{
+  state.vehicle="car";state.returnToStart=true;state.defaultStop=5;state.defaultPark=5;
+  state.stops=[{id:nextId++,stopMin:5,parkMin:5,winMode:"any"},{id:nextId++,stopMin:5,parkMin:5,winMode:"any"}];
+  sel.start=null;sel.finalDest=null;
+  $("startInput").value="";$("finalInput").value="";$("departTime").value="08:30";
+  $("defStop").value=5;$("defPark").value=5;
+  $("returnToggle").checked=true;$("finalWrap").style.display="none";
+  [...$("seg").children].forEach(b=>b.classList.toggle("on",b.dataset.v==="car"));
+  $("vehNote").style.display="none";$("defParkWrap").style.display="block";
+  $("impMsg").style.display="none";$("impMsg").textContent="";
+  if(routeLine){routeLine.setMap(null);routeLine=null;}
+  markers.forEach(m=>m.setMap(null));markers=[];
+  if(map){map.setCenter({lat:40.63,lng:22.95});map.setZoom(11);}
+  renderStops();
+  $("results").innerHTML=`<div class="empty"><div class="big">🧭</div><div>Συμπλήρωσε αφετηρία και στάσεις, μετά πάτησε <b>«Υπολόγισε διαδρομή»</b>.</div></div>`;
+});
 $("finalInput")&&$("finalInput").addEventListener("input",()=>{if($("finalInput").value.trim()==="")sel.finalDest=null;});
 
 /* ---- Init ---- */
