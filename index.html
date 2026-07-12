@@ -87,6 +87,19 @@
   .win{margin-top:10px;}
   .win-times{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:8px;}
   .win-times.hide{display:none;}.win-times span{color:var(--muted);}
+  .pay{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  .pseg{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;}
+  .pseg button{flex:1;font:inherit;font-size:12px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:8px 4px;border-radius:7px;cursor:pointer;}
+  .pseg button.on{background:#fff;box-shadow:0 1px 3px rgba(23,26,31,.15);}
+  .pseg button.on[data-pay=cash]{color:var(--ok);}
+  .pseg button.on[data-pay=card]{color:var(--route);}
+  .pseg button.on[data-pay=paid]{color:var(--muted);}
+  .chip.amt{background:#EAF6EF;color:#146c43;border-color:#BEE6CD;font-weight:600;}
+  .chip.pm-cash{background:#EAF6EF;color:var(--ok);border-color:#BEE6CD;}
+  .chip.pm-card{background:var(--route-soft);color:var(--route);border-color:#CBD7FB;}
+  .chip.pm-paid{background:var(--bg);color:var(--muted);border-color:var(--line);}
+  .collect{margin-top:14px;background:#EAF6EF;border:1px solid #BEE6CD;color:#146c43;border-radius:10px;padding:9px 12px;font-size:13.5px;font-family:var(--mono);}
+  .collect span{color:#4a7a5e;font-size:12px;}
   .small{font-size:11px;color:var(--muted);margin-top:8px;}
 
   .addbtn{width:100%;font:inherit;font-weight:600;color:var(--route);background:var(--route-soft);border:1px dashed #B9C6FB;border-radius:11px;padding:11px;cursor:pointer;transition:.12s;}
@@ -222,8 +235,7 @@
       </label>
     </div>
 
-    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button>
-      <button class="impbtn ghost" id="resetBtn" style="width:100%;margin-top:10px">↺ Επαναφορά — νέο δρομολόγιο</button></div>
+    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button></div>
   </div>
 
   <!-- RESULTS -->
@@ -244,7 +256,7 @@
     <h2>🔑 Google Maps API Key</h2>
     <p>Το key αποθηκεύεται μόνο στη συσκευή σου (localStorage) και δεν στέλνεται πουθενά εκτός από τα APIs της Google.</p>
     <input type="text" id="keyInput" placeholder="AIzaSy…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <div class="hint">Δεν έχεις key ακόμα; → <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank">Google Cloud Console</a><br>Χρειάζονται ενεργά: <b>Maps JS API</b>, <b>Places API (New)</b>, <b>Routes API</b>, <b>Geocoding API</b>.<br>Στους περιορισμούς referrer βάλε: <b>https://quikohub.github.io/*</b></div>
+    <div class="hint">Δεν έχεις key ακόμα; → <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank">Google Cloud Console</a><br>Χρειάζονται ενεργά: <b>Maps JS API</b>, <b>Places API (New)</b>, <b>Routes API</b>.</div>
     <button class="del" id="delKey" style="display:none">Διαγραφή αποθηκευμένου key</button>
     <div class="row">
       <button class="cancel" id="cancelSettings">Άκυρο</button>
@@ -282,7 +294,7 @@ function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f
 function departureISO(hhmm){const[h,m]=hhmm.split(":").map(Number);const now=new Date();const d=new Date();d.setHours(h,m,0,0);if(d.getTime()<now.getTime()+60000)d.setDate(d.getDate()+1);return d.toISOString();}
 
 /* ---- Κατάσταση ---- */
-let state={vehicle:"car",returnToStart:true,defaultStop:5,defaultPark:5,stops:[{id:1,stopMin:5,parkMin:5,winMode:"any"},{id:2,stopMin:5,parkMin:5,winMode:"any"}]};
+let state={vehicle:"car",returnToStart:true,defaultStop:5,defaultPark:5,stops:[{id:1,winMode:"any"},{id:2,winMode:"any"}]};
 let nextId=3;
 const sel={start:null,finalDest:null};   // resolved places: {name,sub,lat,lng,placeId}
 
@@ -355,14 +367,25 @@ function renderStops(){
           <span data-windash="${s.id}">—</span>
           <input type="time" class="mono" data-winto="${s.id}" value="${s.winTo||''}">
         </div>
+      </div>
+      <div class="pay">
+        <div><span class="lab">Ποσό πληρωμής (€)</span><input type="number" min="0" step="0.01" inputmode="decimal" class="mono" placeholder="—" value="${s.amount??''}" data-amount="${s.id}"></div>
+        <div><span class="lab">Πληρωμή</span>
+          <div class="pseg" data-payseg="${s.id}">
+            <button type="button" data-pay="cash">Μετρητά</button>
+            <button type="button" data-pay="card">Κάρτα</button>
+            <button type="button" data-pay="paid">Πληρωμένο</button>
+          </div>
+        </div>
       </div>`;
     stopsEl.appendChild(div);
     const inp=div.querySelector(`[data-stopin]`),lst=div.querySelector(`[data-stoplist]`);
-    if(s.place)inp.value=s.place.name; else if(s._raw)inp.value=s._raw;
+    if(s.place)inp.value=s.place.name;
     wireAC(inp,lst,p=>{s.place=p;});
     inp.addEventListener("input",()=>{s._raw=inp.value;});
-    div.querySelector(`[data-stopmin]`).addEventListener("input",e=>s.stopMin=+e.target.value||0);
-    const pk=div.querySelector(`[data-parkmin]`);if(pk)pk.addEventListener("input",e=>s.parkMin=+e.target.value||0);
+    const both=(el,fn)=>{if(!el)return;el.addEventListener("input",fn);el.addEventListener("change",fn);};
+    both(div.querySelector(`[data-stopmin]`),e=>s.stopMin=+e.target.value||0);
+    both(div.querySelector(`[data-parkmin]`),e=>s.parkMin=+e.target.value||0);
     const modeSel=div.querySelector(`[data-winmode]`);modeSel.value=s.winMode||"any";
     const times=div.querySelector(`[data-wintimes]`),fromI=div.querySelector(`[data-winfrom]`),toI=div.querySelector(`[data-winto]`),dash=div.querySelector(`[data-windash]`);
     function updWin(){const m=s.winMode||"any";times.classList.toggle("hide",m==="any");
@@ -371,8 +394,14 @@ function renderStops(){
       dash.style.visibility=m==="between"?"visible":"hidden";}
     updWin();
     modeSel.addEventListener("change",e=>{s.winMode=e.target.value;updWin();});
-    fromI.addEventListener("input",e=>s.winFrom=e.target.value);
-    toI.addEventListener("input",e=>s.winTo=e.target.value);
+    both(fromI,e=>s.winFrom=e.target.value);
+    both(toI,e=>s.winTo=e.target.value);
+    both(div.querySelector(`[data-amount]`),e=>{const v=e.target.value.trim();s.amount=v===""?null:(parseFloat(v.replace(",","."))||0);});
+    const pseg=div.querySelector(`[data-payseg]`);
+    if(pseg){[...pseg.children].forEach(b=>b.classList.toggle("on",b.dataset.pay===s.payMethod));
+      pseg.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+        s.payMethod=(s.payMethod===b.dataset.pay)?null:b.dataset.pay;
+        [...pseg.children].forEach(x=>x.classList.toggle("on",x.dataset.pay===s.payMethod));});}
     div.querySelector(`[data-rm]`).addEventListener("click",()=>{state.stops=state.stops.filter(x=>x.id!==s.id);renderStops();});
   });
 }
@@ -389,14 +418,10 @@ function chainTimes(visits,legMin,depart,vehicle,startRef){
     if(v.isStop){
       const park=vehicle==="car"?(v.parkMin||0):0,atDoor=arrive+park,win=v.win;
       let wait=0,lateBy=0;
-      if(win){
-        const lift=b=>{if(b==null)return null;while(b<depart)b+=1440;return b;}; // παράθυρα μετά τα μεσάνυχτα
-        const wFrom=lift(win.from),wTo=lift(win.to);
-        if(wFrom!=null&&atDoor<wFrom)wait=wFrom-atDoor;const ss=atDoor+wait;if(wTo!=null&&ss>wTo)lateBy=ss-wTo;
-      }
+      if(win){if(win.from!=null&&atDoor<win.from)wait=win.from-atDoor;const ss=atDoor+wait;if(win.to!=null&&ss>win.to)lateBy=ss-win.to;}
       const ss=atDoor+wait,stp=v.stopMin||0,dep=ss+stp;
       idle+=park+wait+stp;lateTotal+=lateBy;
-      legs.push({to:v.place,travel:tr,arrive,park,wait,stop:stp,depart:dep,lateBy,win,kind:"stop"});
+      legs.push({to:v.place,travel:tr,arrive,park,wait,stop:stp,depart:dep,lateBy,win,amount:(v.amount??null),payMethod:(v.payMethod||null),kind:"stop"});
       t=dep;
     }else{
       legs.push({to:v.place,travel:tr,arrive,kind:"end",back:v.place===startRef});
@@ -407,10 +432,10 @@ function chainTimes(visits,legMin,depart,vehicle,startRef){
 }
 
 /* ---- Routes API ---- */
-async function computeRoutesAPI(origin,intermediates,destination,departIso,travelMode="DRIVE"){
+async function computeRoutesAPI(origin,intermediates,destination,departIso){
   const wp=p=>p.placeId?{placeId:p.placeId}:{location:{latLng:{latitude:p.lat,longitude:p.lng}}};
   const body={origin:wp(origin),destination:wp(destination),intermediates:intermediates.map(wp),
-    travelMode,routingPreference:"TRAFFIC_AWARE",departureTime:departIso,
+    travelMode:"DRIVE",routingPreference:"TRAFFIC_AWARE",departureTime:departIso,
     optimizeWaypointOrder:intermediates.length>1};
   const resp=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
     method:"POST",
@@ -427,7 +452,7 @@ const legToMin=l=>Math.round(parseInt(l.duration,10)/60);
 /* ---- Χάρτης ---- */
 let map=null,routeLine=null,markers=[];
 async function initMap(){try{const {Map}=await google.maps.importLibrary("maps");
-  map=new Map($("map"),{center:{lat:40.63,lng:22.95},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});}catch(e){}}
+  map=new Map($("map"),{center:{lat:37.98,lng:23.74},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false});}catch(e){}}
 async function drawRoute(route,points){
   if(!map)return;
   try{
@@ -438,13 +463,19 @@ async function drawRoute(route,points){
       routeLine=new google.maps.Polyline({path,strokeColor:"#2B50EC",strokeWeight:5,strokeOpacity:.85,map});
       const b=new google.maps.LatLngBounds();path.forEach(p=>b.extend(p));
       points.forEach(p=>b.extend({lat:p.lat,lng:p.lng}));map.fitBounds(b,48);}
-    points.forEach((p,i)=>{if(i===points.length-1&&i>0&&p===points[0])return; // μην διπλώνεις marker στην επιστροφή
-      try{markers.push(new google.maps.Marker({position:{lat:p.lat,lng:p.lng},map,label:{text:i===0?"A":String(i),color:"#fff",fontSize:"12px"}}));}catch(e){}});
+    points.forEach((p,i)=>{try{markers.push(new google.maps.Marker({position:{lat:p.lat,lng:p.lng},map,label:{text:String(i),color:"#fff",fontSize:"12px"}}));}catch(e){}});
   }catch(e){}
 }
 
 /* ---- Render αποτελέσματος ---- */
 function winLabel(w){if(!w)return null;if(w.from!=null&&w.to!=null)return `παράθυρο ${fmt(w.from)}–${fmt(w.to)}`;if(w.from!=null)return `μετά τις ${fmt(w.from)}`;if(w.to!=null)return `πριν τις ${fmt(w.to)}`;return null;}
+function payLabel(m){return m==="cash"?"💶 μετρητά":m==="card"?"💳 κάρτα":m==="paid"?"✅ πληρωμένο":"";}
+function collectHtml(f){let cash=0,card=0,paid=0,other=0,any=false;
+  f.legs.forEach(l=>{if(l.kind==="stop"&&l.amount!=null){any=true;const a=+l.amount;
+    if(l.payMethod==="cash")cash+=a;else if(l.payMethod==="card")card+=a;else if(l.payMethod==="paid")paid+=a;else other+=a;}});
+  if(!any)return"";const e=n=>"€"+n.toFixed(2);const toCollect=cash+card+other;
+  const sub=["μετρητά "+e(cash),"κάρτα "+e(card)];if(other>0)sub.push("χωρίς ένδειξη "+e(other));if(paid>0)sub.push("ήδη πληρωμένα "+e(paid));
+  return `<div class="collect">💰 Προς είσπραξη: ${e(toCollect)} <span>(${sub.join(" · ")})</span></div>`;}
 function renderResults(r){
   const res=$("results"),f=r.final,total=f.end-r.depart;
   const vehName=r.vehicle==="moto"?"Μοτοσικλέτα":"Αυτοκίνητο";
@@ -453,13 +484,13 @@ function renderResults(r){
     <div class="ph-meta">Αφετηρία: ${esc(r.start.name)} · Όχημα: ${vehName} · Αναχώρηση: ${fmt(r.depart)} · Συνολικός χρόνος: ${dur(total)} · ${esc(endName)}${r.endPoint?` (${fmt(f.end)})`:""}</div></div>`;
   html+=`<div class="sum"><div class="sum-top">
       <div><div style="font-size:11px;letter-spacing:.1em;color:var(--muted);font-family:var(--mono)">ΣΥΝΟΛΙΚΟΣ ΧΡΟΝΟΣ</div><div class="sum-total">${dur(total)}</div></div>
-      ${r.reordered?`<span class="saved">↻ η σειρά βελτιστοποιήθηκε</span>`:`<span class="saved none">βέλτιστη σειρά</span>`}</div>
+      ${r.saved>0?`<span class="saved">βελτιστοποίηση · −${dur(r.saved)} οδήγηση</span>`:`<span class="saved none">βέλτιστη σειρά</span>`}</div>
     <div class="sum-grid">
       <div class="stat"><div class="k">Αναχώρηση</div><div class="v">${fmt(r.depart)}</div></div>
       <div class="stat"><div class="k">Οδήγηση</div><div class="v">${dur(f.drive)}</div></div>
       <div class="stat"><div class="k">Ακινησία</div><div class="v">${dur(f.idle)}</div></div></div>
     ${f.lateTotal>0?`<div class="warn">⚠ Κάποιες στάσεις πέφτουν εκτός χρονικού παραθύρου (συνολική καθυστέρηση ${dur(f.lateTotal)}).</div>`:""}
-    ${r.failed&&r.failed.length?`<div class="warn">⚠ Δεν εντοπίστηκαν και παραλείφθηκαν: ${esc(r.failed.join(" · "))}</div>`:""}
+    ${collectHtml(f)}
     <button class="exp" onclick="window.print()">🖨 Εκτύπωση / αποθήκευση ως PDF</button>
   </div><div class="spine reveal">`;
   let i=0;
@@ -479,6 +510,8 @@ function renderResults(r){
       if(l.park>0)html+=`<span class="chip">παρκάρισμα ${l.park}′</span>`;
       html+=`<span class="chip">στάση ${l.stop}′</span>`;
       if(l.lateBy>0)html+=`<span class="chip late">⚠ εκτός παραθύρου +${l.lateBy}′</span>`;
+      if(l.amount!=null)html+=`<span class="chip amt">💶 €${(+l.amount).toFixed(2)}</span>`;
+      if(l.payMethod)html+=`<span class="chip pm-${l.payMethod}">${payLabel(l.payMethod)}</span>`;
       html+=`<span class="chip depart">αναχώρηση ${fmt(l.depart)}</span></div>`;}
     html+=`</div></div>`;
   });
@@ -498,13 +531,12 @@ async function compute(){
     let start=sel.start||(($("startInput").value.trim())?await geocode($("startInput").value.trim()):null);
     if(!start){throw new Error("Συμπλήρωσε έγκυρο σημείο αφετηρίας.");}
     // 2) resolve στάσεις
-    const stops=[],failed=[];
+    const stops=[];
     for(const s of state.stops){
       let pl=s.place; if(!pl && s._raw) pl=await geocode(s._raw);
-      if(!pl){ if(s._raw)failed.push(s._raw); continue; }
-      stops.push({place:pl,isStop:true,win:parseWin(s),stopMin:s.stopMin??state.defaultStop,parkMin:s.parkMin??state.defaultPark});
+      if(!pl) continue;
+      stops.push({place:pl,isStop:true,win:parseWin(s),stopMin:s.stopMin??state.defaultStop,parkMin:s.parkMin??state.defaultPark,amount:(s.amount??null),payMethod:(s.payMethod||null)});
     }
-    if(failed.length&&!stops.length){throw new Error("Δεν εντοπίστηκε καμία διεύθυνση (geocoding). Έλεγξε ότι το Geocoding API είναι ενεργό και επιτρεπτό στο key. Απέτυχαν: "+failed.join(" · "));}
     if(!stops.length){throw new Error("Πρόσθεσε τουλάχιστον μία έγκυρη στάση.");}
     // 3) endpoint
     let endPoint=null,terminalVisit,intermediatesMeta;
@@ -518,13 +550,7 @@ async function compute(){
     const depart=toMin(departHHMM), departIso=departureISO(departHHMM);
     // 4) Routes API
     showStatus("Υπολογισμός βέλτιστης διαδρομής με δεδομένα κίνησης…");
-    let route;
-    try{
-      route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso,state.vehicle==="moto"?"TWO_WHEELER":"DRIVE");
-    }catch(e){
-      if(state.vehicle!=="moto")throw e; // fallback αν το TWO_WHEELER δεν υποστηρίζεται στην περιοχή
-      route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso,"DRIVE");
-    }
+    const route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso);
     const order=route.optimizedIntermediateWaypointIndex||intermediatesMeta.map((_,i)=>i);
     const optMeta=order.map(idx=>intermediatesMeta[idx]);
     const visits=[...optMeta,terminalVisit];
@@ -533,11 +559,15 @@ async function compute(){
       while(legMin.length<visits.length)legMin.push(0);
     }
     const final=chainTimes(visits,legMin,depart,state.vehicle,start);
-    const reordered=order.some((v,i)=>v!==i);
+    // εκτίμηση κέρδους: σύγκριση με τη σειρά εισαγωγής (μόνο για ένδειξη)
+    let saved=0;
+    if(optMeta.length>1){const origMin=(route.legs||[]).map(legToMin).reduce((a,b)=>a+b,0);
+      // δεν έχουμε ξεχωριστή κλήση για ανέλεγκτη σειρά· δείχνουμε 0 αν δεν αλλάχτηκε
+      const changed=order.some((v,i)=>v!==i);saved=changed?0:0; }
     // 5) Χάρτης
     const mapPoints=[start,...optMeta.map(m=>m.place),terminalVisit.place];
     drawRoute(route,mapPoints);
-    renderResults({start,depart,final,reordered,failed,vehicle:state.vehicle,endPoint});
+    renderResults({start,depart,final,saved,vehicle:state.vehicle,endPoint});
   }catch(err){
     const msg=(""+err.message).includes("Failed to fetch")
       ? "Αποτυχία σύνδεσης με το Routes API. Έλεγξε ότι το key έχει ενεργό το Routes API και ότι ο HTTP referrer περιορισμός ταιριάζει με τη διεύθυνση της σελίδας."
@@ -547,16 +577,23 @@ async function compute(){
 }
 
 /* ---- CSV εισαγωγή ---- */
-const HEAD={address:["διεύθυνση","address","name","σημείο","προορισμός","διευθυνση"],stop:["στάση","stop","σταση"],park:["παρκάρισμα","parking","park","παρκαρισμα"],from:["από","from","after","απο"],to:["έως","to","before","εως","μέχρι","μεχρι"]};
+const HEAD={address:["διεύθυνση","address","name","σημείο","προορισμός","διευθυνση"],stop:["στάση","stop","σταση"],park:["παρκάρισμα","parking","park","παρκαρισμα"],from:["από","from","after","απο"],to:["έως","to","before","εως","μέχρι","μεχρι"],amount:["ποσό","ποσο","amount","αξία","αξια"],pay:["πληρωμή","πληρωμη","payment","τρόπος","τροπος","method"]};
 function splitLine(line,delim){const out=[];let cur="",q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(c===delim&&!q){out.push(cur);cur="";}else cur+=c;}out.push(cur);return out.map(s=>s.trim());}
 function parseDelimited(text){text=text.replace(/^\ufeff/,"").replace(/\r\n?/g,"\n").trim();const lines=text.split("\n").filter(l=>l.trim()!=="");if(!lines.length)return[];const f=lines[0],counts={",":(f.match(/,/g)||[]).length,";":(f.match(/;/g)||[]).length,"\t":(f.match(/\t/g)||[]).length};let delim=",",mx=-1;for(const d in counts)if(counts[d]>mx){mx=counts[d];delim=d;}return lines.map(l=>splitLine(l,delim));}
 function importText(text){const rows=parseDelimited(text);if(!rows.length)return[];const flat=rows[0].map(c=>c.toLowerCase());const isHeader=flat.some(c=>HEAD.address.includes(c)||HEAD.stop.includes(c));let idx={address:0,stop:1,park:2,from:3,to:4},data=rows;
-  if(isHeader){data=rows.slice(1);const find=arr=>{for(const a of arr){const i=flat.indexOf(a);if(i>=0)return i;}return -1;};idx={address:find(HEAD.address),stop:find(HEAD.stop),park:find(HEAD.park),from:find(HEAD.from),to:find(HEAD.to)};if(idx.address<0)idx.address=0;}
+  if(isHeader){data=rows.slice(1);const find=arr=>{for(const a of arr){const i=flat.indexOf(a);if(i>=0)return i;}return -1;};idx={address:find(HEAD.address),stop:find(HEAD.stop),park:find(HEAD.park),from:find(HEAD.from),to:find(HEAD.to),amount:find(HEAD.amount),pay:find(HEAD.pay)};if(idx.address<0)idx.address=0;}
+  else{idx.amount=5;idx.pay=6;}
   const out=[];for(const r of data){const addr=(r[idx.address]||"").trim();if(!addr)continue;const gv=i=>i>=0&&r[i]!==undefined?(""+r[i]).trim():"";let sm=parseInt(gv(idx.stop),10),pm=parseInt(gv(idx.park),10);const from=gv(idx.from),to=gv(idx.to);let winMode="any";if(from&&to)winMode="between";else if(from)winMode="after";else if(to)winMode="before";
-    out.push({id:nextId++,_raw:addr,place:null,stopMin:isNaN(sm)?state.defaultStop:sm,parkMin:isNaN(pm)?state.defaultPark:pm,winMode,winFrom:from,winTo:to});}
+    const amtRaw=gv(idx.amount).replace(",",".");const amount=amtRaw===""?null:(parseFloat(amtRaw)||0);const payMethod=parsePay(gv(idx.pay));
+    out.push({id:nextId++,_raw:addr,place:null,stopMin:isNaN(sm)?state.defaultStop:sm,parkMin:isNaN(pm)?state.defaultPark:pm,winMode,winFrom:from,winTo:to,amount,payMethod});}
   return out;}
+function parsePay(v){v=(v||"").trim().toLowerCase();
+  if(["μετρητά","μετρητα","cash","μ","m"].includes(v))return"cash";
+  if(["κάρτα","καρτα","card","κ","k","c"].includes(v))return"card";
+  if(["πληρωμένο","πληρωμενο","paid","π","p"].includes(v))return"paid";
+  return null;}
 function showImp(msg){const el=$("impMsg");el.textContent=msg;el.style.display="block";}
-function downloadTemplate(){const csv='διεύθυνση,στάση,παρκάρισμα,από,έως\n"Πλατεία Συντάγματος, Αθήνα",10,5,,\n"The Mall Athens, Μαρούσι",20,8,10:00,11:30\n"Λιμάνι Πειραιά",15,10,,12:00\n';
+function downloadTemplate(){const csv='διεύθυνση,στάση,παρκάρισμα,από,έως,ποσό,πληρωμή\n"Πλατεία Συντάγματος, Αθήνα",10,5,,,25.00,μετρητά\n"The Mall Athens, Μαρούσι",20,8,10:00,11:30,40,κάρτα\n"Λιμάνι Πειραιά",15,10,,12:00,,πληρωμένο\n';
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));a.download="ypodeigma-staseon.csv";a.click();URL.revokeObjectURL(a.href);}
 
 /* ---- Events ---- */
@@ -578,22 +615,6 @@ $("fileIn").addEventListener("change",e=>{const file=e.target.files[0];if(!file)
     showImp(m);};
   rd.readAsText(file,"utf-8");e.target.value="";});
 $("go").addEventListener("click",compute);
-$("resetBtn").addEventListener("click",()=>{
-  state.vehicle="car";state.returnToStart=true;state.defaultStop=5;state.defaultPark=5;
-  state.stops=[{id:nextId++,stopMin:5,parkMin:5,winMode:"any"},{id:nextId++,stopMin:5,parkMin:5,winMode:"any"}];
-  sel.start=null;sel.finalDest=null;
-  $("startInput").value="";$("finalInput").value="";$("departTime").value="08:30";
-  $("defStop").value=5;$("defPark").value=5;
-  $("returnToggle").checked=true;$("finalWrap").style.display="none";
-  [...$("seg").children].forEach(b=>b.classList.toggle("on",b.dataset.v==="car"));
-  $("vehNote").style.display="none";$("defParkWrap").style.display="block";
-  $("impMsg").style.display="none";$("impMsg").textContent="";
-  if(routeLine){routeLine.setMap(null);routeLine=null;}
-  markers.forEach(m=>m.setMap(null));markers=[];
-  if(map){map.setCenter({lat:40.63,lng:22.95});map.setZoom(11);}
-  renderStops();
-  $("results").innerHTML=`<div class="empty"><div class="big">🧭</div><div>Συμπλήρωσε αφετηρία και στάσεις, μετά πάτησε <b>«Υπολόγισε διαδρομή»</b>.</div></div>`;
-});
 $("finalInput")&&$("finalInput").addEventListener("input",()=>{if($("finalInput").value.trim()==="")sel.finalDest=null;});
 
 /* ---- Init ---- */
