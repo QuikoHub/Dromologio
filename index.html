@@ -259,7 +259,7 @@
   </div>
 </main>
 
-<footer>Πραγματικά δεδομένα κίνησης μέσω Google Routes API (TRAFFIC_AWARE). Η σειρά βελτιστοποιείται από το API· οι χρόνοι στάσης, παρκαρίσματος και τα χρονικά παράθυρα υπολογίζονται τοπικά.</footer>
+<footer>Η σειρά στάσεων βελτιστοποιείται με κίνηση, χρόνους εξυπηρέτησης και χρονικά παράθυρα μέσω Google Route Optimization API. Η τελική χάραξη προβάλλεται μέσω Google Routes API.</footer>
 
 <!-- Settings modal -->
 <div class="overlay hidden" id="overlay">
@@ -281,6 +281,9 @@
    ΒΑΛΕ ΕΔΩ ΤΟ ΔΙΚΟ ΣΟΥ GOOGLE MAPS API KEY (μία φορά):
    =================================================================== */
 let API_KEY = localStorage.getItem("gmap_api_key")||"";
+// Συμπληρώνεται με το Cloud Run URL μετά το deployment. Το localStorage
+// επιτρέπει ασφαλή δοκιμή staging χωρίς νέα έκδοση του αρχείου.
+let OPTIMIZER_URL = localStorage.getItem("route_optimizer_url")||"https://dromologio-optimizer-744110505612.europe-west1.run.app";
 /* =================================================================== */
 
 /* ---- Google Maps loader (επίσημος) ---- */
@@ -459,11 +462,11 @@ function chainTimes(visits,legMin,depart,vehicle,startRef){
 }
 
 /* ---- Routes API ---- */
-async function computeRoutesAPI(origin,intermediates,destination,departIso){
+async function computeRoutesAPI(origin,intermediates,destination,departIso,optimize=false){
   const wp=p=>p.placeId?{placeId:p.placeId}:{location:{latLng:{latitude:p.lat,longitude:p.lng}}};
   const body={origin:wp(origin),destination:wp(destination),intermediates:intermediates.map(wp),
     travelMode:"DRIVE",routingPreference:"TRAFFIC_AWARE",departureTime:departIso,
-    optimizeWaypointOrder:intermediates.length>1};
+    optimizeWaypointOrder:!!optimize&&intermediates.length>1};
   const resp=await fetch("https://routes.googleapis.com/directions/v2:computeRoutes",{
     method:"POST",
     headers:{"Content-Type":"application/json","X-Goog-Api-Key":API_KEY,
@@ -475,6 +478,19 @@ async function computeRoutesAPI(origin,intermediates,destination,departIso){
   return data.routes[0];
 }
 const legToMin=l=>Math.round(parseInt(l.duration,10)/60);
+
+/* ---- Route Optimization backend (OAuth μένει εκτός browser) ---- */
+async function optimizeWithWindows(origin,stops,end,departIso){
+  if(!OPTIMIZER_URL)throw new Error("Δεν έχει συνδεθεί ακόμη η υπηρεσία βελτιστοποίησης διαδρομής.");
+  const body={origin:{lat:origin.lat,lng:origin.lng},end:end?{lat:end.lat,lng:end.lng}:null,
+    departureTime:departIso,timezoneOffsetMinutes:new Date().getTimezoneOffset(),vehicle:state.vehicle,
+    stops:stops.map(s=>({lat:s.place.lat,lng:s.place.lng,stopMin:s.stopMin,parkMin:s.parkMin,window:s.win}))};
+  const resp=await fetch(OPTIMIZER_URL.replace(/\/$/,"")+"/optimize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  let data={};try{data=await resp.json();}catch(e){}
+  if(!resp.ok)throw new Error(data.error||`Route Optimization API ${resp.status}.`);
+  if(!Array.isArray(data.order)||data.order.length!==stops.length)throw new Error("Η υπηρεσία βελτιστοποίησης επέστρεψε μη έγκυρη σειρά.");
+  return data;
+}
 
 /* ---- Χάρτης ---- */
 let map=null,routeLine=null,markers=[];
@@ -565,21 +581,24 @@ async function compute(){
       stops.push({place:pl,isStop:true,win:parseWin(s),stopMin:s.stopMin??state.defaultStop,parkMin:s.parkMin??state.defaultPark,amount:(s.amount??null),payMethod:(s.payMethod||null)});
     }
     if(!stops.length){throw new Error("Πρόσθεσε τουλάχιστον μία έγκυρη στάση.");}
-    // 3) endpoint
-    let endPoint=null,terminalVisit,intermediatesMeta;
-    if(state.returnToStart){endPoint=start;intermediatesMeta=stops;terminalVisit={place:start,isStop:false};}
+    // 3) endpoint και στάσεις που θα βελτιστοποιηθούν
+    let endPoint=null,terminalVisit,optimizableStops;
+    if(state.returnToStart){endPoint=start;optimizableStops=stops;terminalVisit={place:start,isStop:false};}
     else{
       let fd=sel.finalDest||(($("finalInput").value.trim())?await geocode($("finalInput").value.trim()):null);
-      if(fd){endPoint=fd;intermediatesMeta=stops;terminalVisit={place:fd,isStop:false};}
-      else{const last=stops[stops.length-1];intermediatesMeta=stops.slice(0,-1);terminalVisit=last;}
+      if(fd){endPoint=fd;optimizableStops=stops;terminalVisit={place:fd,isStop:false};}
+      else{const last=stops[stops.length-1];endPoint=last.place;optimizableStops=stops.slice(0,-1);terminalVisit=last;}
     }
     const departHHMM=$("departTime").value||"08:30";
     const depart=toMin(departHHMM), departIso=departureISO(departHHMM);
-    // 4) Routes API
-    showStatus("Υπολογισμός βέλτιστης διαδρομής με δεδομένα κίνησης…");
-    const route=await computeRoutesAPI(start,intermediatesMeta.map(m=>m.place),terminalVisit.place,departIso);
-    const order=route.optimizedIntermediateWaypointIndex||intermediatesMeta.map((_,i)=>i);
-    const optMeta=order.map(idx=>intermediatesMeta[idx]);
+    // 4) Route Optimization API: παράθυρα + χρόνοι εξυπηρέτησης + κίνηση
+    showStatus("Βελτιστοποίηση σειράς με χρονικά παράθυρα και κίνηση…");
+    const optimized=optimizableStops.length?await optimizeWithWindows(start,optimizableStops,endPoint,departIso):{order:[]};
+    const order=optimized.order;
+    const optMeta=order.map(idx=>optimizableStops[idx]);
+    if(optMeta.some(x=>!x))throw new Error("Η υπηρεσία βελτιστοποίησης επέστρεψε άγνωστη στάση.");
+    // Το Routes API σχεδιάζει τη βελτιστοποιημένη σειρά χωρίς να την αλλάξει.
+    const route=await computeRoutesAPI(start,optMeta.map(m=>m.place),terminalVisit.place,departIso,false);
     const visits=[...optMeta,terminalVisit];
     const legMin=(route.legs||[]).map(legToMin);
     if(legMin.length!==visits.length){ // ασφάλεια: ευθυγράμμιση
@@ -588,9 +607,7 @@ async function compute(){
     const final=chainTimes(visits,legMin,depart,state.vehicle,start);
     // εκτίμηση κέρδους: σύγκριση με τη σειρά εισαγωγής (μόνο για ένδειξη)
     let saved=0;
-    if(optMeta.length>1){const origMin=(route.legs||[]).map(legToMin).reduce((a,b)=>a+b,0);
-      // δεν έχουμε ξεχωριστή κλήση για ανέλεγκτη σειρά· δείχνουμε 0 αν δεν αλλάχτηκε
-      const changed=order.some((v,i)=>v!==i);saved=changed?0:0; }
+    if(optMeta.length>1){const changed=order.some((v,i)=>v!==i);saved=changed?0:0;}
     // 5) Χάρτης
     const mapPoints=[start,...optMeta.map(m=>m.place),terminalVisit.place];
     drawRoute(route,mapPoints);
