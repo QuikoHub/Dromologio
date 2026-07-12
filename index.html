@@ -101,6 +101,8 @@
   .collect{margin-top:14px;background:#EAF6EF;border:1px solid #BEE6CD;color:#146c43;border-radius:10px;padding:9px 12px;font-size:13.5px;font-family:var(--mono);}
   .collect span{color:#4a7a5e;font-size:12px;}
   .small{font-size:11px;color:var(--muted);margin-top:8px;}
+  .field-note{display:none;margin-top:6px;font-size:11px;line-height:1.35;color:var(--late);}
+  .field-note.show{display:block;}
 
   .addbtn{width:100%;font:inherit;font-weight:600;color:var(--route);background:var(--route-soft);border:1px dashed #B9C6FB;border-radius:11px;padding:11px;cursor:pointer;transition:.12s;}
   .addbtn:hover{background:#dbe4fe;}
@@ -110,6 +112,8 @@
   #impMsg{background:var(--route-soft);color:var(--route);border:1px solid #CBD7FB;border-radius:9px;padding:8px 11px;margin-top:8px;}
 
   .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .final-stop-card{margin-top:14px;padding:14px;background:var(--route-soft);border:1px solid #CBD7FB;border-radius:12px;}
+  .final-stop-card .eyebrow{color:var(--route);margin-bottom:8px;}
   .switch{position:relative;width:46px;height:27px;flex:0 0 46px;}
   .switch input{opacity:0;width:0;height:0;}
   .slider{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.16s;cursor:pointer;}
@@ -231,10 +235,14 @@
         <div><div style="font-weight:600">Επιστροφή στην αφετηρία</div><div class="small" style="margin-top:2px">Κλείνει τον κύκλο στο σημείο εκκίνησης.</div></div>
         <label class="switch"><input type="checkbox" id="returnToggle" checked><span class="slider"></span></label>
       </div>
-      <label class="fld" id="finalWrap" style="display:none;margin-top:14px">
-        <span class="lab">Τελικός προορισμός <span style="color:var(--muted)">(προαιρετικό — κενό = τελευταία στάση)</span></span>
-        <div class="ac"><input type="text" id="finalInput" placeholder="Διεύθυνση ή σημείο ενδιαφέροντος" autocomplete="off"><div class="ac-list" id="finalList"></div></div>
-      </label>
+      <div class="final-stop-card" id="finalWrap" style="display:none">
+        <p class="eyebrow">Τελική στάση</p>
+        <label class="fld" style="margin-bottom:0">
+          <span class="lab">Τελικός προορισμός <span style="color:var(--muted)">(προαιρετικό)</span></span>
+          <div class="ac"><input type="text" id="finalInput" placeholder="Κενό = η τελευταία στάση της λίστας" autocomplete="off"><div class="ac-list" id="finalList"></div></div>
+        </label>
+        <div class="small">Όταν συμπληρωθεί, όλες οι παραπάνω στάσεις βελτιστοποιούνται και η διαδρομή ολοκληρώνεται εδώ.</div>
+      </div>
     </div>
 
     <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button>
@@ -363,16 +371,16 @@ function renderStops(){
       <div class="win"><span class="lab">Χρονικό παράθυρο άφιξης</span>
         <select data-winmode="${s.id}">
           <option value="any">Οποτεδήποτε</option><option value="between">Μεταξύ…</option>
-          <option value="after">Μετά από…</option><option value="before">Πριν από…</option>
         </select>
         <div class="win-times" data-wintimes="${s.id}">
           <input type="time" class="mono" data-winfrom="${s.id}" value="${s.winFrom||''}">
           <span data-windash="${s.id}">—</span>
           <input type="time" class="mono" data-winto="${s.id}" value="${s.winTo||''}">
         </div>
+        <div class="small" data-winhint="${s.id}">Μόνο αριστερή ώρα = μετά από · μόνο δεξιά ώρα = πριν από.</div>
       </div>
       <div class="pay">
-        <div><span class="lab">Ποσό πληρωμής (€)</span><input type="text" inputmode="decimal" autocomplete="off" class="mono" placeholder="—" value="${s.amount??''}" data-amount="${s.id}"></div>
+        <div><span class="lab">Ποσό πληρωμής (€)</span><input type="text" inputmode="decimal" autocomplete="off" class="mono" placeholder="—" value="${s.amount??''}" data-amount="${s.id}" aria-describedby="amount-note-${s.id}"><div class="field-note ${s.amountCorrected?'show':''}" id="amount-note-${s.id}" data-amountnote="${s.id}">${s.amountCorrected?'Το αρνητικό ποσό μετατράπηκε αυτόματα σε θετικό.':''}</div></div>
         <div><span class="lab">Πληρωμή</span>
           <div class="pseg" data-payseg="${s.id}">
             <button type="button" data-pay="cash">Μετρητά</button>
@@ -389,17 +397,23 @@ function renderStops(){
     const both=(el,fn)=>{if(!el)return;el.addEventListener("input",fn);el.addEventListener("change",fn);};
     both(div.querySelector(`[data-stopmin]`),e=>s.stopMin=+e.target.value||0);
     both(div.querySelector(`[data-parkmin]`),e=>s.parkMin=+e.target.value||0);
-    const modeSel=div.querySelector(`[data-winmode]`);modeSel.value=s.winMode||"any";
-    const times=div.querySelector(`[data-wintimes]`),fromI=div.querySelector(`[data-winfrom]`),toI=div.querySelector(`[data-winto]`),dash=div.querySelector(`[data-windash]`);
-    function updWin(){const m=s.winMode||"any";times.classList.toggle("hide",m==="any");
-      fromI.style.visibility=(m==="between"||m==="after")?"visible":"hidden";
-      toI.style.visibility=(m==="between"||m==="before")?"visible":"hidden";
-      dash.style.visibility=m==="between"?"visible":"hidden";}
+    if(s.winMode!=="between")s.winMode="any";
+    const modeSel=div.querySelector(`[data-winmode]`);modeSel.value=s.winMode;
+    const times=div.querySelector(`[data-wintimes]`),fromI=div.querySelector(`[data-winfrom]`),toI=div.querySelector(`[data-winto]`),hint=div.querySelector(`[data-winhint]`);
+    function updWin(){const show=s.winMode==="between";times.classList.toggle("hide",!show);hint.style.display=show?"block":"none";}
     updWin();
     modeSel.addEventListener("change",e=>{s.winMode=e.target.value;updWin();});
     both(fromI,e=>s.winFrom=e.target.value);
     both(toI,e=>s.winTo=e.target.value);
-    both(div.querySelector(`[data-amount]`),e=>{const v=e.target.value.trim().replace(",",".").replace(/[^0-9.]/g,"");s.amount=v===""?null:(parseFloat(v)||0);});
+    const amountI=div.querySelector(`[data-amount]`),amountNote=div.querySelector(`[data-amountnote]`);
+    both(amountI,e=>{const raw=e.target.value.trim().replace(",",".");
+      if(raw===""){s.amount=null;s.amountCorrected=false;amountNote.textContent="";amountNote.classList.remove("show");return;}
+      if(!/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw)){s.amount=null;amountNote.textContent="Μη έγκυρο ποσό — χρησιμοποίησε έναν αριθμό, π.χ. 12,50.";amountNote.classList.add("show");return;}
+      const n=Number(raw);if(!Number.isFinite(n)){s.amount=null;amountNote.textContent="Μη έγκυρο ποσό — απαιτείται χειροκίνητη διόρθωση.";amountNote.classList.add("show");return;}
+      s.amount=Math.abs(n);s.amountCorrected=n<0;
+      if(n<0){e.target.value=String(s.amount);amountNote.textContent="Το αρνητικό ποσό μετατράπηκε αυτόματα σε θετικό.";amountNote.classList.add("show");}
+      else{amountNote.textContent="";amountNote.classList.remove("show");}
+    });
     const pseg=div.querySelector(`[data-payseg]`);
     if(pseg){[...pseg.children].forEach(b=>b.classList.toggle("on",b.dataset.pay===s.payMethod));
       pseg.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
@@ -410,8 +424,18 @@ function renderStops(){
 }
 
 /* ---- Χρονικά παράθυρα ---- */
-function parseWin(s){const f=s.winFrom?toMin(s.winFrom):null,to=s.winTo?toMin(s.winTo):null,m=s.winMode||"any";
-  if(m==="after")return{from:f,to:null};if(m==="before")return{from:null,to:to};if(m==="between")return{from:f,to:to};return null;}
+function parseWin(s){const f=s.winFrom?toMin(s.winFrom):null,to=s.winTo?toMin(s.winTo):null;
+  if((s.winMode||"any")!=="between"||(f==null&&to==null))return null;
+  return{from:f,to};}
+
+function absoluteWindow(win,atDoor){
+  if(!win)return null;const day=Math.floor(atDoor/1440)*1440;
+  let from=win.from==null?null:day+win.from,to=win.to==null?null:day+win.to;
+  if(from!=null&&to!=null&&win.to<win.from){
+    if(atDoor<day+win.to)from-=1440;else to+=1440;
+  }
+  return{from,to};
+}
 
 /* ---- Αλυσίδα χρόνων (παρκάρισμα, αναμονή, παράθυρα) ---- */
 function chainTimes(visits,legMin,depart,vehicle,startRef){
@@ -419,9 +443,9 @@ function chainTimes(visits,legMin,depart,vehicle,startRef){
   visits.forEach((v,i)=>{
     const tr=legMin[i],arrive=t+tr;drive+=tr;
     if(v.isStop){
-      const park=vehicle==="car"?(v.parkMin||0):0,atDoor=arrive+park,win=v.win;
+      const park=vehicle==="car"?(v.parkMin||0):0,atDoor=arrive+park,win=v.win,absWin=absoluteWindow(win,atDoor);
       let wait=0,lateBy=0;
-      if(win){if(win.from!=null&&atDoor<win.from)wait=win.from-atDoor;const ss=atDoor+wait;if(win.to!=null&&ss>win.to)lateBy=ss-win.to;}
+      if(absWin){if(absWin.from!=null&&atDoor<absWin.from)wait=absWin.from-atDoor;const ss=atDoor+wait;if(absWin.to!=null&&ss>absWin.to)lateBy=ss-absWin.to;}
       const ss=atDoor+wait,stp=v.stopMin||0,dep=ss+stp;
       idle+=park+wait+stp;lateTotal+=lateBy;
       legs.push({to:v.place,travel:tr,arrive,park,wait,stop:stp,depart:dep,lateBy,win,amount:(v.amount??null),payMethod:(v.payMethod||null),kind:"stop"});
@@ -586,9 +610,10 @@ function parseDelimited(text){text=text.replace(/^\ufeff/,"").replace(/\r\n?/g,"
 function importText(text){const rows=parseDelimited(text);if(!rows.length)return[];const flat=rows[0].map(c=>c.toLowerCase());const isHeader=flat.some(c=>HEAD.address.includes(c)||HEAD.stop.includes(c));let idx={address:0,stop:1,park:2,from:3,to:4},data=rows;
   if(isHeader){data=rows.slice(1);const find=arr=>{for(const a of arr){const i=flat.indexOf(a);if(i>=0)return i;}return -1;};idx={address:find(HEAD.address),stop:find(HEAD.stop),park:find(HEAD.park),from:find(HEAD.from),to:find(HEAD.to),amount:find(HEAD.amount),pay:find(HEAD.pay)};if(idx.address<0)idx.address=0;}
   else{idx.amount=5;idx.pay=6;}
-  const out=[];for(const r of data){const addr=(r[idx.address]||"").trim();if(!addr)continue;const gv=i=>i>=0&&r[i]!==undefined?(""+r[i]).trim():"";let sm=parseInt(gv(idx.stop),10),pm=parseInt(gv(idx.park),10);const from=gv(idx.from),to=gv(idx.to);let winMode="any";if(from&&to)winMode="between";else if(from)winMode="after";else if(to)winMode="before";
-    const amtRaw=gv(idx.amount).replace(",",".");const amount=amtRaw===""?null:(parseFloat(amtRaw)||0);const payMethod=parsePay(gv(idx.pay));
-    out.push({id:nextId++,_raw:addr,place:null,stopMin:isNaN(sm)?state.defaultStop:sm,parkMin:isNaN(pm)?state.defaultPark:pm,winMode,winFrom:from,winTo:to,amount,payMethod});}
+  const out=[];for(const r of data){const addr=(r[idx.address]||"").trim();if(!addr)continue;const gv=i=>i>=0&&r[i]!==undefined?(""+r[i]).trim():"";let sm=parseInt(gv(idx.stop),10),pm=parseInt(gv(idx.park),10);const from=gv(idx.from),to=gv(idx.to),winMode=(from||to)?"between":"any";
+    const amtRaw=gv(idx.amount).replace(",","."),parsedAmount=amtRaw===""?null:parseFloat(amtRaw),amountCorrected=parsedAmount!=null&&Number.isFinite(parsedAmount)&&parsedAmount<0;
+    const amount=parsedAmount==null||!Number.isFinite(parsedAmount)?null:Math.abs(parsedAmount),payMethod=parsePay(gv(idx.pay));
+    out.push({id:nextId++,_raw:addr,place:null,stopMin:isNaN(sm)?state.defaultStop:sm,parkMin:isNaN(pm)?state.defaultPark:pm,winMode,winFrom:from,winTo:to,amount,amountCorrected,payMethod});}
   return out;}
 function parsePay(v){v=(v||"").trim().toLowerCase();
   if(["μετρητά","μετρητα","cash","μ","m"].includes(v))return"cash";
@@ -627,6 +652,7 @@ $("fileIn").addEventListener("change",e=>{const file=e.target.files[0];if(!file)
   rd.onload=()=>{const drafts=importText(rd.result);if(!drafts.length){showImp("Δεν βρέθηκαν έγκυρες στάσεις στο αρχείο.");return;}
     drafts.forEach(d=>state.stops.push(d));renderStops();
     let m=`Προστέθηκαν ${drafts.length} στάσεις. Οι διευθύνσεις θα εντοπιστούν (geocoding) κατά τον υπολογισμό.`;
+    const corrected=drafts.filter(d=>d.amountCorrected).length;if(corrected)m+=` ${corrected} αρνητικά ποσά μετατράπηκαν σε θετικά και επισημάνθηκαν με κόκκινο.`;
     if(state.stops.length>25)m+=" Προσοχή: το Routes API δέχεται έως 25 ενδιάμεσες στάσεις.";
     showImp(m);};
   rd.readAsText(file,"utf-8");e.target.value="";});
