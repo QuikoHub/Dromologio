@@ -369,7 +369,7 @@ function renderStops(){
         </div>
       </div>
       <div class="pay">
-        <div><span class="lab">Ποσό πληρωμής (€)</span><input type="number" min="0" step="0.01" inputmode="decimal" class="mono" placeholder="—" value="${s.amount??''}" data-amount="${s.id}"></div>
+        <div><span class="lab">Ποσό πληρωμής (€)</span><input type="text" inputmode="decimal" autocomplete="off" class="mono" placeholder="—" value="${s.amount??''}" data-amount="${s.id}"></div>
         <div><span class="lab">Πληρωμή</span>
           <div class="pseg" data-payseg="${s.id}">
             <button type="button" data-pay="cash">Μετρητά</button>
@@ -396,7 +396,7 @@ function renderStops(){
     modeSel.addEventListener("change",e=>{s.winMode=e.target.value;updWin();});
     both(fromI,e=>s.winFrom=e.target.value);
     both(toI,e=>s.winTo=e.target.value);
-    both(div.querySelector(`[data-amount]`),e=>{const v=e.target.value.trim();s.amount=v===""?null:(parseFloat(v.replace(",","."))||0);});
+    both(div.querySelector(`[data-amount]`),e=>{const v=e.target.value.trim().replace(",",".").replace(/[^0-9.]/g,"");s.amount=v===""?null:(parseFloat(v)||0);});
     const pseg=div.querySelector(`[data-payseg]`);
     if(pseg){[...pseg.children].forEach(b=>b.classList.toggle("on",b.dataset.pay===s.payMethod));
       pseg.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
