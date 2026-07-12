@@ -120,6 +120,8 @@
   .go{width:100%;font:inherit;font-weight:700;font-size:15px;color:#fff;background:var(--route);border:0;border-radius:12px;padding:14px;cursor:pointer;transition:.12s;}
   .go:hover{background:#2343c9;}.go:active{transform:translateY(1px);}
   .go:disabled{opacity:.6;cursor:default;}
+  .reset-btn{width:100%;margin-top:10px;font:inherit;font-weight:600;font-size:13.5px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px;cursor:pointer;}
+  .reset-btn:hover{background:var(--bg);color:var(--ink);}
 
   #map{width:100%;height:300px;border-radius:14px 14px 0 0;background:#dfe3e8;border-bottom:1px solid var(--line);}
   @media(max-width:860px){#map{height:240px;}}
@@ -235,7 +237,8 @@
       </label>
     </div>
 
-    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button></div>
+    <div class="section"><button class="go" id="go">Υπολόγισε διαδρομή</button>
+      <button class="reset-btn" id="resetBtn">🗑 Νέα διαδρομή</button></div>
   </div>
 
   <!-- RESULTS -->
@@ -596,6 +599,19 @@ function showImp(msg){const el=$("impMsg");el.textContent=msg;el.style.display="
 function downloadTemplate(){const csv='διεύθυνση,στάση,παρκάρισμα,από,έως,ποσό,πληρωμή\n"Πλατεία Συντάγματος, Αθήνα",10,5,,,25.00,μετρητά\n"The Mall Athens, Μαρούσι",20,8,10:00,11:30,40,κάρτα\n"Λιμάνι Πειραιά",15,10,,12:00,,πληρωμένο\n';
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));a.download="ypodeigma-staseon.csv";a.click();URL.revokeObjectURL(a.href);}
 
+/* ---- Reset διαδρομής (χωρίς reload) ---- */
+function resetRoute(){
+  if(!confirm("Να καθαριστεί η τρέχουσα διαδρομή; Θα διαγραφούν στάσεις, αφετηρία, τελικός προορισμός και το αποτέλεσμα. (Το όχημα, οι προεπιλογές και το API key παραμένουν.)")) return;
+  state.stops=[{id:nextId++,winMode:"any"},{id:nextId++,winMode:"any"}];
+  sel.start=null; sel.finalDest=null;
+  $("startInput").value=""; if($("finalInput")) $("finalInput").value="";
+  state.returnToStart=true; $("returnToggle").checked=true; $("finalWrap").style.display="none";
+  $("impMsg").style.display="none";
+  renderStops();
+  $("results").innerHTML='<div class="empty"><div class="big">🧭</div><div>Συμπλήρωσε αφετηρία και στάσεις, μετά πάτησε <b>«Υπολόγισε διαδρομή»</b>.</div></div>';
+  try{ if(routeLine)routeLine.setMap(null); markers.forEach(m=>m.setMap(null)); markers=[]; }catch(e){}
+}
+
 /* ---- Events ---- */
 $("seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.vehicle=b.dataset.v;
   [...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b));
@@ -615,6 +631,7 @@ $("fileIn").addEventListener("change",e=>{const file=e.target.files[0];if(!file)
     showImp(m);};
   rd.readAsText(file,"utf-8");e.target.value="";});
 $("go").addEventListener("click",compute);
+$("resetBtn").addEventListener("click",resetRoute);
 $("finalInput")&&$("finalInput").addEventListener("input",()=>{if($("finalInput").value.trim()==="")sel.finalDest=null;});
 
 /* ---- Init ---- */
